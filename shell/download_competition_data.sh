@@ -1,4 +1,4 @@
 #!/bin/bash
-kaggle competitions download map-probing-questiontext-unique -p data
+kaggle competitions download map-charting-student-math-misunderstandings -p data
 sudo apt-get install unzip
-unzip data/map-probing-questiontext-unique.zip -d data
+unzip data/map-charting-student-math-misunderstandings.zip -d data
