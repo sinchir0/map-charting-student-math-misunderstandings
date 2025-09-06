@@ -71,7 +71,7 @@ https://github.com/settings/keys
 
 
 ## GitHub上でのリポジトリの作成
-まずは、GitHub上でmap-probing-questiontext-uniqueという名前のrepoを作成する
+まずは、GitHub上でmap-charting-student-math-misunderstandingsという名前のrepoを作成する
 
 次に、ローカルのファイルをpushする。
 ```
