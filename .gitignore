@@ -177,5 +177,4 @@ data/*
 !data/.gitkeep
 
 # env_file
-env_file/kaggle.json
-env_file/env
+env_file/*

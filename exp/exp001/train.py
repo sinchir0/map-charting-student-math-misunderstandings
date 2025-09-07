@@ -1,26 +1,34 @@
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import LabelEncoder
-from pathlib import Path
-import torch
-from transformers import AutoTokenizer
-from sklearn.model_selection import train_test_split
-from datasets import Dataset
-import numpy as np
-from transformers import AutoModelForCausalLM
-from trl import SFTTrainer, SFTConfig
-import torch, os
-
 # ref: https://www.kaggle.com/code/cdeotte/gemma2-9b-it-cv-0-945
 
+import os
+import random
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import torch
+from datasets import Dataset
+from dotenv import load_dotenv
+from sklearn.model_selection import train_test_split
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from trl import SFTConfig, SFTTrainer
+
+import wandb
+
+COMPETITION_NAME = "map-charting-student-math-misunderstandings"
+EXP_NAME = "exp001"
 DATA_PATH = Path("data")
+ENV_PATH = Path("env_file")
 MAX_LEN = 256
-OUT_DIR = "outputs/qwen3-0_6b-sft"
+OUT_DIR = f"outputs/{EXP_NAME}"
 BATCH_SIZE = 8
 GRAD_ACCUM = 2
 LR = 2e-5
-EPOCH = 2
-PROMPT = """\
+EPOCH = 1
+SEED = 42
+MODEL_NAME = "Qwen/Qwen3-0.6B"
+DEBUG = True
+PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
 Based on the information provided below, please determine what kind of misunderstanding the student has.
 
@@ -29,107 +37,90 @@ Answer: {MC_Answer}
 Correct: {Correct}
 Student Explanation: {StudentExplanation}
 """
+COLS = ["prompt", "completion"]
 
+
+def seed_everything(seed: int):
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+
+
+def make_completion(df: pd.DataFrame) -> pd.DataFrame:
+    df["Misconception"] = df["Misconception"].fillna("NA")
+    df["completion"] = df["Category"] + ":" + df["Misconception"]
+    n_classes = df["completion"].nunique()
+    print(f"Train shape: {df.shape} with {n_classes} target classes")
+    return df
+
+
+def add_is_correct(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    前提として、ラベル付けが誤っていることがある。
+    よって、QuestionIdに対して、MC_AnswerがTrueになっている回答が最も多いものを、真の正解として扱う。
+    """
+    idx = df.apply(lambda row: row["Category"].split("_")[0], axis=1) == "True"
+    correct = df.loc[idx].copy()
+    correct["count"] = correct.groupby(["QuestionId", "MC_Answer"]).MC_Answer.transform(
+        "count"
+    )
+    correct = correct.sort_values("count", ascending=False)
+    correct = correct.drop_duplicates(["QuestionId"])
+    correct = correct[["QuestionId", "MC_Answer"]]
+    correct["is_correct"] = 1
+
+    df = df.merge(correct, on=["QuestionId", "MC_Answer"], how="left")
+    df["is_correct"] = df["is_correct"].fillna(0)
+    return df
+
+
+def format_input(row) -> str:
+    return PROMPT_FORMAT.format(
+        QuestionText=row["QuestionText"],
+        MC_Answer=row["MC_Answer"],
+        Correct="Yes" if row["is_correct"] else "No",
+        StudentExplanation=row["StudentExplanation"],
+    )
+
+load_dotenv(f"{ENV_PATH}/.env")
+wandb.login(key=os.environ["WANDB_API_KEY"])
+wandb.init(project=COMPETITION_NAME, name=EXP_NAME)
+
+seed_everything(SEED)
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
 train = pd.read_csv(DATA_PATH / "train.csv")
 
-le = LabelEncoder()
-
-train["Misconception"] = train["Misconception"].fillna('NA')
-train['target'] = train["Category"] + ":" + train["Misconception"]
-# train['label'] = le.fit_transform(train['target'])
-# target_classes = le.classes_
-# n_classes = len(target_classes)
-n_classes = train['target'].nunique()
-print(f"Train shape: {train.shape} with {n_classes} target classes")
-
-# Powerful Feature Engineer
-# 前提として、ラベル付けが誤っていることがある。
-# よって、QuestionIdに対して、MC_AnswerがTrueになっている回答が最も多いものを、真の正解として扱う。
-idx = train.apply(lambda row: row.Category.split('_')[0],axis=1)=='True'
-correct = train.loc[idx].copy()
-correct['c'] = correct.groupby(['QuestionId','MC_Answer']).MC_Answer.transform('count')
-correct = correct.sort_values('c',ascending=False)
-correct = correct.drop_duplicates(['QuestionId'])
-correct = correct[['QuestionId','MC_Answer']]
-correct['is_correct'] = 1
-
-train = train.merge(correct, on=['QuestionId','MC_Answer'], how='left')
-train.is_correct = train.is_correct.fillna(0)
-
-tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
-
-def format_input(row) -> str:
-    x = "Yes"
-    if not row['is_correct']:
-        x = "No"
-    return PROMPT.format(
-        QuestionText=row['QuestionText'],
-        MC_Answer=row['MC_Answer'],
-        Correct=x,
-        StudentExplanation=row['StudentExplanation']
-    )
-
-train['text'] = train.apply(format_input, axis=1)
+train = make_completion(train)
+train = add_is_correct(train)
+train["prompt"] = train.apply(format_input, axis=1)
 print("Example prompt for our LLM:")
 print()
-print( train.text.values[0] )
+print(train["prompt"].values[0])
 
-# Create 20% Validation Subset
-# Split into train and validation sets
-train_df, val_df = train_test_split(train, test_size=0.2, random_state=42)
+if DEBUG:
+    train = train.sample(1000, random_state=SEED).reset_index(drop=True)
 
-# Convert to Hugging Face Dataset
-# COLS = ['text','label'] 
-COLS = ['text','target'] 
+train_df, val_df = train_test_split(train, test_size=0.1, random_state=42)
+
 train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
 val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
-# format for SFT
-def preprocess_function(example):
-    return {
-        "prompt": example["text"],
-        "completion": example['target'] # {"role": "assistant", "content": f"<think>{example['Complex_CoT']}</think>{example['Response']}"}
-    }
-
-train_ds = train_ds.map(preprocess_function, remove_columns=["text", "target"])
-val_ds = val_ds.map(preprocess_function, remove_columns=["text", "target"])
-pass
-# TODO: 正しいフォーマットにできているか確認する
-
-# === SFTTrainer + SFTConfig (L4/A100最適化、model_init_kwargs不使用) ===
-# pip install -U trl accelerate transformers datasets
-# 可能なら pip install flash-attn==2.* でFlashAttention2を有効化
-
-# ---- GPU最適化（L4/A100想定）----
-# torch.backends.cuda.matmul.allow_tf32 = True  # TF32（A100/L4可）
-# try:
-#     torch.set_float32_matmul_precision("high")  # 追加のTF32最適化
-# except Exception:
-#     pass
-
-# tokenizer の pad 設定
-# if tokenizer.pad_token is None:
-#     tokenizer.pad_token = tokenizer.eos_token
-# tokenizer.padding_side = "right"
-
-
-# モデルを明示ロード（bf16）
 model = AutoModelForCausalLM.from_pretrained(
-    "Qwen/Qwen3-0.6B",
+    MODEL_NAME,
     trust_remote_code=True,
     dtype=torch.bfloat16,
+    # attn_implementation="flash_attention_2", # A100なら動くかも
     device_map="auto",
 )
 
-# 省メモリ: KVキャッシュOFFでの学習を許可（学習時は不要）
-# if hasattr(model.config, "use_cache"):
-#     model.config.use_cache = False
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
-# ---- SFTConfig（学習設定）----
-# 0.6B なのでL4/A100ならもう少しバッチを上げてもOKですが、安全に8x2で例示
 sft_config = SFTConfig(
     output_dir=OUT_DIR,
     per_device_train_batch_size=BATCH_SIZE,
@@ -140,37 +131,38 @@ sft_config = SFTConfig(
     max_length=MAX_LEN,
     warmup_ratio=0.03,
     lr_scheduler_type="cosine",
-    logging_steps=50,
-    save_steps=500,
-    eval_steps=500,
+    logging_steps=0.1,
+    save_steps=0.1,
+    eval_steps=0.1,
     eval_strategy="steps",
     save_total_limit=2,
-    bf16=True,  # L4/A100ならTrue
-    tf32=True,  # A100/L4向け
-    fp16=False,  # bf16優先
-    gradient_checkpointing=True, # 省メモリ
+    bf16=True,
+    tf32=True,
+    fp16=False,
+    gradient_checkpointing=True,
     max_grad_norm=1.0,
     report_to="wandb",
-    packing=True
+    # packing=True # A100なら動くかも
 )
 
-# ---- SFTTrainer ----
 trainer = SFTTrainer(
     model=model,
+    processing_class=tokenizer,
     args=sft_config,
     train_dataset=train_ds,
-    eval_dataset=val_ds
+    eval_dataset=val_ds,
 )
 
 trainer.train()
 
 # 保存
 trainer.save_model(OUT_DIR)
-# tokenizer.save_pretrained(OUT_DIR)
 
 # ---- 簡易推論テスト ----
 model.eval()
-sample = val_df.iloc[0]["text"]
+sample = val_df.iloc[50]["prompt"]
+answer = val_df.iloc[50]["completion"]
+print(sample)
 inputs = tokenizer(sample, return_tensors="pt").to(model.device)
 with torch.no_grad():
     out = model.generate(
@@ -182,4 +174,7 @@ with torch.no_grad():
         eos_token_id=tokenizer.eos_token_id,
         pad_token_id=tokenizer.pad_token_id,
     )
-print(tokenizer.decode(out[0], skip_special_tokens=True))
+# 入力長を取得し、生成部分だけdecode
+input_length = inputs["input_ids"].shape[1]
+generated_tokens = out[0][input_length:]
+print(tokenizer.decode(generated_tokens, skip_special_tokens=True))
