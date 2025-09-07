@@ -12,18 +12,18 @@ from dotenv import load_dotenv
 from sklearn.model_selection import train_test_split
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTConfig, SFTTrainer
-from vllm import LLM, SamplingParams
-import gc
+from datetime import datetime
 
 import wandb
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
+NOW = datetime.now().strftime("%Y%m%d%H%M%S")
 EXP_NAME = "exp001"
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
 MAX_LEN = 256
-OUT_DIR = f"outputs/{EXP_NAME}"
+OUT_DIR = f"outputs/{EXP_NAME}/{NOW}"
 BATCH_SIZE = 8
 GRAD_ACCUM = 2
 LR = 2e-5
@@ -110,6 +110,7 @@ if __name__ == "__main__":
         train = train.sample(1000, random_state=SEED).reset_index(drop=True)
 
     train_df, val_df = train_test_split(train, test_size=0.1, random_state=42)
+    val_df.to_csv(f"{OUT_DIR}/val_df.csv", index=False)
 
     train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
     val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
@@ -156,77 +157,8 @@ if __name__ == "__main__":
         eval_dataset=val_ds,
     )
 
-    if DO_TRAIN:
-        trainer.train()
+    trainer.train()
 
-        # 保存
-        trainer.save_model(OUT_DIR)
-
-    # # ---- 簡易推論テスト ----
-    # model.eval()
-    # sample = val_df.iloc[50]["prompt"]
-    # answer = val_df.iloc[50]["completion"]
-    # print(sample)
-    # inputs = tokenizer(sample, return_tensors="pt").to(model.device)
-    # with torch.no_grad():
-    #     out = model.generate(
-    #         **inputs,
-    #         max_new_tokens=128,
-    #         do_sample=True,
-    #         temperature=0.7,
-    #         top_p=0.9,
-    #         eos_token_id=tokenizer.eos_token_id,
-    #         pad_token_id=tokenizer.pad_token_id,
-    #     )
-    # # 入力長を取得し、生成部分だけdecode
-    # input_length = inputs["input_ids"].shape[1]
-    # generated_tokens = out[0][input_length:]
-    # print(tokenizer.decode(generated_tokens, skip_special_tokens=True))
-
-    del model, trainer
-    torch.cuda.empty_cache()
-    gc.collect()
-
-    # ---- 評価 ----
-    # vLLMでモデルを初期化
-    vllm_model = LLM(
-        model=OUT_DIR,  # 保存したモデルパスを指定
-        trust_remote_code=True,
-        dtype=torch.bfloat16,
-        gpu_memory_utilization=0.95,
-        max_model_len=MAX_LEN,
-        seed=SEED,
-    )
-
-    # サンプリングパラメータ設定
-    sampling_params = SamplingParams(
-        temperature=0.0,  # greedy
-        top_p=1,  # greedy
-        top_k=-1,  # greedy
-        max_tokens=MAX_LEN,
-        stop_token_ids=[tokenizer.eos_token_id],
-    )
-
-    # val_df全体に対して推論実行
-    print("\n=== vLLM推論開始 ===")
-    prompts = val_df["prompt"].tolist()
-    outputs = vllm_model.generate(prompts, sampling_params)
-
-    # 結果を保存
-    predictions = []
-    for output in outputs:
-        generated_text = output.outputs[0].text.strip()
-        predictions.append(generated_text)
-
-    val_df["prediction"] = predictions
-
-    # 結果の一部を表示
-    print(f"\nvLLM推論完了: {len(predictions)}件")
-    for i in range(min(5, len(val_df))):
-        print(f"\n--- Sample {i+1} ---")
-        print(f"Ground Truth: {val_df.iloc[i]['completion']}")
-        print(f"Prediction: {val_df.iloc[i]['prediction']}")
-
-    # 結果をCSVに保存
-    val_df[["prompt", "completion", "prediction"]].to_csv(f"{OUT_DIR}/validation_results.csv", index=False)
-    print(f"\n推論結果を {OUT_DIR}/validation_results.csv に保存しました")
+    # 保存
+    trainer.save_model(OUT_DIR)
+    tokenizer.save_pretrained(OUT_DIR)
