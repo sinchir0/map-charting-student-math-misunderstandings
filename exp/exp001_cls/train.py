@@ -10,15 +10,15 @@ import torch
 from datasets import Dataset
 from dotenv import load_dotenv
 from sklearn.model_selection import train_test_split
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from trl import SFTConfig, SFTTrainer
 from datetime import datetime
-
+import json
 import wandb
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp001"
+EXP_NAME = "exp001_cls"
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
@@ -39,8 +39,7 @@ Correct: {Correct}
 Student Explanation: {StudentExplanation}
 """
 COLS = ["prompt", "completion"]
-DEBUG = True
-DO_TRAIN = True
+DEBUG = False
 
 def seed_everything(seed: int):
     random.seed(seed)
@@ -88,6 +87,20 @@ def format_input(row) -> str:
         StudentExplanation=row["StudentExplanation"],
     )
 
+def add_compeltion_token(
+        model: AutoModelForCausalLM,
+        tokenizer: PreTrainedTokenizer,
+        completions: list[str]
+    ) -> PreTrainedTokenizer:
+    special_tokens_dict = {"additional_special_tokens": completions}
+    tokenizer.add_special_tokens(special_tokens_dict)
+    print(f"Added {len(completions)} special tokens.")
+
+    model.resize_token_embeddings(len(tokenizer))
+    print(f"Resized model embeddings to {len(tokenizer)} tokens.")
+
+    return model, tokenizer
+
 if __name__ == "__main__":
     load_dotenv(f"{ENV_PATH}/.env")
     wandb.login(key=os.environ["WANDB_API_KEY"])
@@ -124,7 +137,19 @@ if __name__ == "__main__":
     )
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+    
+    all_completions = train["completion"].unique().tolist()
+    
+    with open(f"{OUT_DIR}/all_completions.json", "w", encoding="utf-8") as f:
+        json.dump(all_completions, f, ensure_ascii=False, indent=2)
+    print(f"Saved all_completions to {OUT_DIR}/all_completions.json")
 
+
+    model, tokenizer = add_compeltion_token(model, tokenizer, all_completions)
+
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
     sft_config = SFTConfig(
         output_dir=OUT_DIR,
         per_device_train_batch_size=BATCH_SIZE,

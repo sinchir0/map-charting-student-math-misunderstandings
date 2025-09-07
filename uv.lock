@@ -13,6 +13,24 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "accelerate"
+version = "1.10.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "psutil" },
+    { name = "pyyaml" },
+    { name = "safetensors" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/72/ff3961c19ee395c3d30ac630ee77bfb0e1b46b87edc504d4f83bb4a89705/accelerate-1.10.1.tar.gz", hash = "sha256:3dea89e433420e4bfac0369cae7e36dcd6a56adfcfd38cdda145c6225eab5df8", size = 392446, upload-time = "2025-08-25T13:57:06.21Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5f/a0/d9ef19f780f319c21ee90ecfef4431cbeeca95bec7f14071785c17b6029b/accelerate-1.10.1-py3-none-any.whl", hash = "sha256:3621cff60b9a27ce798857ece05e2b9f56fcc71631cfb31ccf71f0359c311f11", size = 374909, upload-time = "2025-08-25T13:57:04.55Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1191,6 +1209,20 @@ wheels = [
 ]
 
 [[package]]
+name = "logits-processor-zoo"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "accelerate" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/91/8035fec7a3d30d888b02fb15855912ef3eeff28610d24327ecf960e89ef1/logits_processor_zoo-0.2.1.tar.gz", hash = "sha256:f67c2641aa08dddb93b780633d0cd7b2804e4d3439d5dcc004fd0440b99deabb", size = 19795, upload-time = "2025-07-08T14:17:05.267Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dd/45/c2d82e58f52261bd49e8038676096804848e7b5576e42985b459686b782e/logits_processor_zoo-0.2.1-py3-none-any.whl", hash = "sha256:cfca87212cc5e1f5fc757938c9241a2f1e8c20a064efe8ac9f30a9ddd7e7205a", size = 44468, upload-time = "2025-07-08T14:17:04.169Z" },
+]
+
+[[package]]
 name = "map-charting-student-math-misunderstandings"
 version = "0.1.0"
 source = { virtual = "." }
@@ -1198,6 +1230,7 @@ dependencies = [
     { name = "datasets" },
     { name = "dotenv" },
     { name = "isort" },
+    { name = "logits-processor-zoo" },
     { name = "pandas" },
     { name = "ruff" },
     { name = "scikit-learn" },
@@ -1216,6 +1249,7 @@ requires-dist = [
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "flash-attn", marker = "extra == 'flash-attn'", specifier = "==2.8.3" },
     { name = "isort", specifier = ">=6.0.1" },
+    { name = "logits-processor-zoo", specifier = ">=0.2.1" },
     { name = "pandas", specifier = ">=2.3.2" },
     { name = "ruff", specifier = ">=0.12.12" },
     { name = "scikit-learn", specifier = ">=1.7.1" },

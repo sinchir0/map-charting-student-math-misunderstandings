@@ -4,8 +4,7 @@ from transformers import AutoTokenizer
 import torch
 import pandas as pd
 
-EXP_NAME = "exp001"
-OUT_DIR = f"outputs/{EXP_NAME}"
+OUT_DIR = "outputs/exp001/20250907130649"
 MAX_LEN = 256
 SEED = 42
 
