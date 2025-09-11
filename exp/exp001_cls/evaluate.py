@@ -12,7 +12,37 @@ DATA_PATH = Path("data")
 OUT_DIR = "outputs/exp001_cls/20250907233056"
 MAX_LEN = 256
 SEED = 42
-DEBUG = True
+DEBUG = False
+
+# MAP@3の計算
+def calculate_map_at_k(y_true, y_pred, k=3):
+    """
+    Mean Average Precision at K を計算する
+    y_true: 正解ラベル（文字列）のリスト
+    y_pred: 予測ラベル（リスト）のリスト。各リストは上位K個の予測を含む
+    k: 評価するランクの上限
+    """
+    average_precisions = []
+    
+    for true_label, pred_list in zip(y_true, y_pred):
+        # 予測リストを上位k個に制限
+        pred_k = pred_list[:k]
+        
+        # 正解が予測リストに含まれているかチェック
+        if true_label in pred_k:
+            # 正解の位置（1-indexed）
+            position = pred_k.index(true_label) + 1
+            # Average Precision = 1 / position
+            ap = 1.0 / position
+        else:
+            ap = 0.0
+        
+        average_precisions.append(ap)
+    
+    # Mean Average Precision
+    map_score = sum(average_precisions) / len(average_precisions)
+    return map_score, average_precisions
+
 if __name__ == "__main__":
     with open(f"{OUT_DIR}/all_completions.json", "r", encoding="utf-8") as f:
         all_completions = json.load(f)
@@ -42,13 +72,6 @@ if __name__ == "__main__":
         logprobs=3, # MAP@3だから
         stop_token_ids=[tokenizer.eos_token_id],
         allowed_token_ids=allowed_token_ids
-        # NOTE: MultipleChoiceLogitsProcessorは、vLLM のバージョン 0.10.1.1 では対応していない。
-        # logits_processors=[
-        #     MultipleChoiceLogitsProcessor(
-        #         tokenizer,
-        #         choices=all_completions
-        #     )
-        # ]
     )
 
     # val_df全体に対して推論実行
@@ -71,8 +94,35 @@ if __name__ == "__main__":
         print(f"Ground Truth: {val_df.iloc[i]['completion']}")
         print(f"Prediction: {val_df.iloc[i]['prediction']}")
 
+    # MAP@3を計算
+    map_at_3, aps = calculate_map_at_k(val_df["completion"].tolist(), val_df["prediction"].tolist(), k=3)
+    
+    # val_dfにscore列を追加
+    val_df["score"] = aps
+    
+    print(f"\n=== 評価結果 ===")
+    print(f"MAP@3: {map_at_3:.4f}")
+    
+    # 詳細な結果を表示
+    print(f"\n=== 詳細結果（先頭5件） ===")
+    for i in range(min(5, len(val_df))):
+        print(f"Sample {i+1}:")
+        print(f"  Ground Truth: {val_df.iloc[i]['completion']}")
+        print(f"  Predictions: {val_df.iloc[i]['prediction']}")
+        print(f"  Score: {val_df.iloc[i]['score']:.4f}")
+    
+    # 結果をJSONファイルに保存
+    results = {
+        "map_at_3": map_at_3,
+        "num_samples": len(val_df),
+        "debug_mode": DEBUG,
+        "model_path": OUT_DIR
+    }
+    
+    with open(f"{OUT_DIR}/evaluation_results.json", "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=2)
+    print(f"\n評価結果を {OUT_DIR}/evaluation_results.json に保存しました")
+    
     # 結果をCSVに保存
-    val_df[["prompt", "completion", "prediction"]].to_csv(f"{OUT_DIR}/validation_results.csv", index=False)
+    val_df[["prompt", "completion", "prediction", "score"]].to_csv(f"{OUT_DIR}/validation_results.csv", index=False)
     print(f"\n推論結果を {OUT_DIR}/validation_results.csv に保存しました")
-
-    # TODO: MAP@3の計算を追加する、計算方法から確認する

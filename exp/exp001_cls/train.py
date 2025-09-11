@@ -16,14 +16,23 @@ from datetime import datetime
 import json
 import wandb
 
+import os
+import json
+
+from kaggle.api.kaggle_api_extended import KaggleApi
+
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
-NOW = datetime.now().strftime("%Y%m%d%H%M%S")
+# NOW = datetime.now().strftime("%Y%m%d%H%M%S")
+NOW = "20250907233056"
 EXP_NAME = "exp001_cls"
 MODEL_NAME = "Qwen/Qwen3-0.6B"
+DATASET_NAME = f"{EXP_NAME}-{MODEL_NAME.split('/')[-1]}-{NOW}"
+OUTPUT_PATH = f"outputs/{EXP_NAME}/{NOW}"
+CHECKPOINT_PATH = f"{OUTPUT_PATH}/checkpoint"
+UPLOAD_PATH = f"{OUTPUT_PATH}/upload"
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
 MAX_LEN = 256
-OUT_DIR = f"outputs/{EXP_NAME}/{NOW}"
 BATCH_SIZE = 8
 GRAD_ACCUM = 2
 LR = 2e-5
@@ -101,6 +110,21 @@ def add_compeltion_token(
 
     return model, tokenizer
 
+def dataset_create_new(dataset_name: str, upload_dir: str):
+    dataset_name = dataset_name.replace("_", "-").replace(".", "-")
+    
+    dataset_metadata = {}
+    dataset_metadata["id"] = f"sinchir0/{dataset_name}"
+    dataset_metadata["licenses"] = [{"name": "CC0-1.0"}]
+    dataset_metadata["title"] = dataset_name
+    
+    with open(os.path.join(upload_dir, "dataset-metadata.json"), "w") as f:
+        json.dump(dataset_metadata, f, indent=4)
+    
+    api = KaggleApi()
+    api.authenticate()
+    api.dataset_create_new(folder=upload_dir, convert_to_csv=False, dir_mode="tar")
+
 if __name__ == "__main__":
     load_dotenv(f"{ENV_PATH}/.env")
     wandb.login(key=os.environ["WANDB_API_KEY"])
@@ -108,7 +132,7 @@ if __name__ == "__main__":
 
     seed_everything(SEED)
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(UPLOAD_PATH, exist_ok=True)
 
     train = pd.read_csv(DATA_PATH / "train.csv")
 
@@ -123,7 +147,7 @@ if __name__ == "__main__":
         train = train.sample(1000, random_state=SEED).reset_index(drop=True)
 
     train_df, val_df = train_test_split(train, test_size=0.1, random_state=42)
-    val_df.to_csv(f"{OUT_DIR}/val_df.csv", index=False)
+    val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
 
     train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
     val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
@@ -140,9 +164,9 @@ if __name__ == "__main__":
     
     all_completions = train["completion"].unique().tolist()
     
-    with open(f"{OUT_DIR}/all_completions.json", "w", encoding="utf-8") as f:
+    with open(f"{UPLOAD_PATH}/all_completions.json", "w", encoding="utf-8") as f:
         json.dump(all_completions, f, ensure_ascii=False, indent=2)
-    print(f"Saved all_completions to {OUT_DIR}/all_completions.json")
+    print(f"Saved all_completions to {UPLOAD_PATH}/all_completions.json")
 
 
     model, tokenizer = add_compeltion_token(model, tokenizer, all_completions)
@@ -151,7 +175,7 @@ if __name__ == "__main__":
         tokenizer.pad_token = tokenizer.eos_token
     
     sft_config = SFTConfig(
-        output_dir=OUT_DIR,
+        output_dir=CHECKPOINT_PATH,
         per_device_train_batch_size=BATCH_SIZE,
         per_device_eval_batch_size=BATCH_SIZE,
         gradient_accumulation_steps=GRAD_ACCUM,
@@ -185,5 +209,8 @@ if __name__ == "__main__":
     trainer.train()
 
     # 保存
-    trainer.save_model(OUT_DIR)
-    tokenizer.save_pretrained(OUT_DIR)
+    trainer.save_model(UPLOAD_PATH)
+    tokenizer.save_pretrained(UPLOAD_PATH)
+
+    print(f"Create Dataset name:{DATASET_NAME}, output_dir:{UPLOAD_PATH}")
+    dataset_create_new(dataset_name=DATASET_NAME, upload_dir=UPLOAD_PATH)
