@@ -1,18 +1,19 @@
-
+import os
 import json
 from vllm import LLM, SamplingParams
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, LogitsProcessor
 import torch
 import pandas as pd
 from pathlib import Path
 
 # ref: https://www.kaggle.com/code/aerdem4/eedi-qwen32b-vllm-with-logits-processor-zoo
-# ref: 
 DATA_PATH = Path("data")
-OUT_DIR = "outputs/exp001_cls/20250907233056"
+OUT_DIR = "outputs/exp001_cls/20250907233056/upload"
 MAX_LEN = 256
 SEED = 42
 DEBUG = False
+
+os.environ["VLLM_USE_V1"] = "0" # Kaggle環境に合わせるため
 
 # MAP@3の計算
 def calculate_map_at_k(y_true, y_pred, k=3):
@@ -43,6 +44,21 @@ def calculate_map_at_k(y_true, y_pred, k=3):
     map_score = sum(average_precisions) / len(average_precisions)
     return map_score, average_precisions
 
+# https://www.kaggle.com/code/aleaiest/lb-0-945-qwen2-5-32b-gptq/notebook
+class LabelOnlyLogitsProcessor(LogitsProcessor):
+    def __init__(self, allowed_token_ids):
+        self.allowed_token_ids = allowed_token_ids
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
+        mask = torch.full_like(scores, float('-inf'))
+        if scores.dim() == 1:
+            mask[self.allowed_token_ids] = 0
+        elif scores.dim() == 2:
+            mask[:, self.allowed_token_ids] = 0
+        else:
+            raise ValueError("Unexpected score dimensions")
+        return scores + mask
+
 if __name__ == "__main__":
     with open(f"{OUT_DIR}/all_completions.json", "r", encoding="utf-8") as f:
         all_completions = json.load(f)
@@ -50,15 +66,16 @@ if __name__ == "__main__":
     val_df = pd.read_csv(f"{OUT_DIR}/val_df.csv")
     if DEBUG:
         val_df = val_df[:10]
+    
     tokenizer = AutoTokenizer.from_pretrained(OUT_DIR, trust_remote_code=True)
 
     allowed_token_ids = [tokenizer.encode(str(i), add_special_tokens=False)[0] for i in all_completions]
 
     vllm_model = LLM(
-        model=OUT_DIR,  # 保存したモデルパスを指定
-        trust_remote_code=True,
-        dtype=torch.bfloat16,
+        model=str(OUT_DIR),
+        dtype=torch.float16, # Kaggle環境ではbfloat16が使えないため、合わせる
         gpu_memory_utilization=0.95,
+        enforce_eager=True,
         max_model_len=MAX_LEN,
         seed=SEED,
     )
@@ -69,9 +86,9 @@ if __name__ == "__main__":
         top_p=1,  # greedy
         top_k=-1,  # greedy
         max_tokens=1,
-        logprobs=3, # MAP@3だから
+        logprobs=3, # because MAP@3
         stop_token_ids=[tokenizer.eos_token_id],
-        allowed_token_ids=allowed_token_ids
+        logits_processors=[LabelOnlyLogitsProcessor(allowed_token_ids)],
     )
 
     # val_df全体に対して推論実行
@@ -81,7 +98,8 @@ if __name__ == "__main__":
 
     predictions = []
     for output in outputs:
-        prediction = [out.decoded_token for out in output.outputs[0].logprobs[0].values()]
+        predicted_token_ids = list(output.outputs[0].logprobs[0])
+        prediction = [tokenizer.decode([predicted_token_id]) for predicted_token_id in predicted_token_ids]
         predictions.append(prediction)
 
     # 結果を保存
