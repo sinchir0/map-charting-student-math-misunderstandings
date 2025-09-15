@@ -8,7 +8,7 @@ from pathlib import Path
 
 # ref: https://www.kaggle.com/code/aerdem4/eedi-qwen32b-vllm-with-logits-processor-zoo
 DATA_PATH = Path("data")
-OUT_DIR = "outputs/exp001_cls/20250907233056/upload"
+OUT_DIR = "outputs/exp002_skfold/20250915011954/upload"
 MAX_LEN = 256
 SEED = 42
 DEBUG = False
