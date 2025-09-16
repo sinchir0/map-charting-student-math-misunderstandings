@@ -1,5 +1,5 @@
 #!/bin/bash
-uv run python exp/exp001_cls/train.py
-uv run python exp/exp001_cls/evaluate.py
+uv run python exp/exp005/train.py
+# uv run python exp/exp004/evaluate.py
 
-gcloud compute instances stop saito-gpu-map-dev --zone=us-central1-b
+gcloud compute instances stop saito-gpu-map-calc --zone=us-central1-a --discard-local-ssd=false

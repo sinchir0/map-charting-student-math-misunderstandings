@@ -24,7 +24,7 @@ from kaggle.api.kaggle_api_extended import KaggleApi
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp004_8b_ep2"
+EXP_NAME = "exp005_8b_fulltrain"
 MODEL_NAME = "Qwen/Qwen3-8B"
 DATASET_NAME = f"{EXP_NAME}-{MODEL_NAME.split('/')[-1]}-{NOW}"
 OUTPUT_PATH = f"outputs/{EXP_NAME}/{NOW}"
@@ -50,7 +50,7 @@ Student Explanation: {StudentExplanation}
 """
 COLS = ["prompt", "completion"]
 DEBUG = False
-USE_FOLD = 0
+# USE_FOLD = 0
 
 def seed_everything(seed: int):
     random.seed(seed)
@@ -150,13 +150,16 @@ if __name__ == "__main__":
     fold_dict = json.load(open(FOLD_PATH))
     train["fold"] = train["row_id"].astype(str).map(fold_dict)
 
-    train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
-    val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
+    # train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
+    # val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
 
-    val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
+    # val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
+
+    # validを使わない
+    train_df = train.copy()
 
     train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
-    val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
+    # val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
@@ -179,20 +182,12 @@ if __name__ == "__main__":
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    
-    # lora_config = LoraConfig(
-    #     r=8,
-    #     target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-    #     lora_alpha=64,
-    #     lora_dropout=0.05,
-    #     bias="none",
-    #     task_type="CAUSAL_LM",
-    # )
+
 
     sft_config = SFTConfig(
         output_dir=CHECKPOINT_PATH,
         per_device_train_batch_size=BATCH_SIZE,
-        per_device_eval_batch_size=BATCH_SIZE,
+        # per_device_eval_batch_size=BATCH_SIZE,
         gradient_accumulation_steps=GRAD_ACCUM,
         learning_rate=LR,
         num_train_epochs=EPOCH,
@@ -201,8 +196,8 @@ if __name__ == "__main__":
         lr_scheduler_type="cosine",
         logging_steps=0.1,
         save_steps=0.1,
-        eval_steps=0.1,
-        eval_strategy="steps",
+        # eval_steps=0.1,
+        # eval_strategy="steps",
         save_total_limit=2,
         bf16=True,
         tf32=True,
@@ -210,6 +205,7 @@ if __name__ == "__main__":
         gradient_checkpointing=True,
         max_grad_norm=1.0,
         report_to="wandb",
+        do_eval=False,
         # packing=True # A100なら動くかも
     )
 
@@ -218,8 +214,7 @@ if __name__ == "__main__":
         processing_class=tokenizer,
         args=sft_config,
         train_dataset=train_ds,
-        eval_dataset=val_ds,
-        # peft_config=lora_config,
+        # eval_dataset=val_ds,
     )
 
     trainer.train()
