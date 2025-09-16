@@ -9,35 +9,29 @@ import pandas as pd
 import torch
 from datasets import Dataset
 from dotenv import load_dotenv
-from sklearn.model_selection import train_test_split
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from trl import SFTConfig, SFTTrainer
-from peft import LoraConfig
 from datetime import datetime
+import argparse
 import json
 import wandb
 
 import os
 import json
 
-from kaggle.api.kaggle_api_extended import KaggleApi
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp005_8b_fulltrain"
+EXP_NAME = "exp006_val_bst"
 MODEL_NAME = "Qwen/Qwen3-8B"
-DATASET_NAME = f"{EXP_NAME}-{MODEL_NAME.split('/')[-1]}-{NOW}"
-OUTPUT_PATH = f"outputs/{EXP_NAME}/{NOW}"
-CHECKPOINT_PATH = f"{OUTPUT_PATH}/checkpoint"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
-UPLOAD_PATH = f"{OUTPUT_PATH}/upload"
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
 MAX_LEN = 256
 BATCH_SIZE = 8
 GRAD_ACCUM = 2
 LR = 2e-5
-EPOCH = 2
+EPOCH = 3
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
@@ -50,7 +44,7 @@ Student Explanation: {StudentExplanation}
 """
 COLS = ["prompt", "completion"]
 DEBUG = False
-# USE_FOLD = 0
+USE_FOLD = 0
 
 def seed_everything(seed: int):
     random.seed(seed)
@@ -112,22 +106,15 @@ def add_compeltion_token(
 
     return model, tokenizer
 
-def dataset_create_new(dataset_name: str, upload_dir: str):
-    dataset_name = dataset_name.replace("_", "-").replace(".", "-")
-    
-    dataset_metadata = {}
-    dataset_metadata["id"] = f"sinchir0/{dataset_name}"
-    dataset_metadata["licenses"] = [{"name": "CC0-1.0"}]
-    dataset_metadata["title"] = dataset_name
-    
-    with open(os.path.join(upload_dir, "dataset-metadata.json"), "w") as f:
-        json.dump(dataset_metadata, f, indent=4)
-    
-    api = KaggleApi()
-    api.authenticate()
-    api.dataset_create_new(folder=upload_dir, convert_to_csv=False, dir_mode="tar")
-
 if __name__ == "__main__":
+    # Pathの指定
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', type=str, help='ディレクトリのパス')
+    args = parser.parse_args()
+    OUTPUT_PATH = args.dir if args.dir else f"outputs/{EXP_NAME}/{NOW}"
+    CHECKPOINT_PATH = f"{OUTPUT_PATH}/checkpoint"
+    UPLOAD_PATH = f"{OUTPUT_PATH}/upload"
+
     load_dotenv(f"{ENV_PATH}/.env")
     wandb.login(key=os.environ["WANDB_API_KEY"])
     wandb.init(project=COMPETITION_NAME, name=EXP_NAME)
@@ -150,16 +137,13 @@ if __name__ == "__main__":
     fold_dict = json.load(open(FOLD_PATH))
     train["fold"] = train["row_id"].astype(str).map(fold_dict)
 
-    # train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
-    # val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
+    train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
+    val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
 
-    # val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
-
-    # validを使わない
-    train_df = train.copy()
+    val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
 
     train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
-    # val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
+    val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
@@ -182,12 +166,20 @@ if __name__ == "__main__":
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-
+    
+    # lora_config = LoraConfig(
+    #     r=8,
+    #     target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    #     lora_alpha=64,
+    #     lora_dropout=0.05,
+    #     bias="none",
+    #     task_type="CAUSAL_LM",
+    # )
 
     sft_config = SFTConfig(
         output_dir=CHECKPOINT_PATH,
         per_device_train_batch_size=BATCH_SIZE,
-        # per_device_eval_batch_size=BATCH_SIZE,
+        per_device_eval_batch_size=BATCH_SIZE,
         gradient_accumulation_steps=GRAD_ACCUM,
         learning_rate=LR,
         num_train_epochs=EPOCH,
@@ -196,8 +188,8 @@ if __name__ == "__main__":
         lr_scheduler_type="cosine",
         logging_steps=0.1,
         save_steps=0.1,
-        # eval_steps=0.1,
-        # eval_strategy="steps",
+        eval_steps=0.1,
+        eval_strategy="steps",
         save_total_limit=2,
         bf16=True,
         tf32=True,
@@ -205,7 +197,8 @@ if __name__ == "__main__":
         gradient_checkpointing=True,
         max_grad_norm=1.0,
         report_to="wandb",
-        do_eval=False,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss"
         # packing=True # A100なら動くかも
     )
 
@@ -214,7 +207,8 @@ if __name__ == "__main__":
         processing_class=tokenizer,
         args=sft_config,
         train_dataset=train_ds,
-        # eval_dataset=val_ds,
+        eval_dataset=val_ds,
+        # peft_config=lora_config,
     )
 
     trainer.train()
@@ -222,6 +216,3 @@ if __name__ == "__main__":
     # 保存
     trainer.save_model(UPLOAD_PATH)
     tokenizer.save_pretrained(UPLOAD_PATH)
-
-    # print(f"Create Dataset name:{DATASET_NAME}, output_dir:{UPLOAD_PATH}")
-    # dataset_create_new(dataset_name=DATASET_NAME, upload_dir=UPLOAD_PATH)
