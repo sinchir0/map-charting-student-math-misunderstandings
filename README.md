@@ -84,6 +84,12 @@ cp env_file/.env.default env_file/.env
 ```
 envファイルに対し、WANDB_API_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEYを設定する
 
+## 並列分散学習
+```bash
+uv run accelerate launch --config_file config/accelerate_config_zero3.yaml \
+    exp/exp007/train.py
+```
+
 ## 注意点
 
 ### 仮想環境

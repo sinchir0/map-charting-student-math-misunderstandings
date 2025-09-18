@@ -20,7 +20,7 @@ import wandb
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now(timezone(timedelta(hours=9))).strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp007_14b_multi"
+EXP_NAME = "exp008_14b_multi-fulltrain"
 MODEL_NAME = "Qwen/Qwen3-14B"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
@@ -29,7 +29,7 @@ MAX_LEN = 256
 BATCH_SIZE = 8
 GRAD_ACCUM = 2
 LR = 2e-5
-EPOCH = 1
+EPOCH = 3
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
@@ -139,13 +139,15 @@ if __name__ == "__main__":
     fold_dict = json.load(open(FOLD_PATH))
     train["fold"] = train["row_id"].astype(str).map(fold_dict)
 
-    train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
-    val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
+    # train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
+    # val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
 
-    val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
+    # val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
+
+    train_df = train.copy()
 
     train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
-    val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
+    # val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
@@ -180,7 +182,7 @@ if __name__ == "__main__":
     sft_config = SFTConfig(
         output_dir=CHECKPOINT_PATH,
         per_device_train_batch_size=BATCH_SIZE,
-        per_device_eval_batch_size=BATCH_SIZE,
+        # per_device_eval_batch_size=BATCH_SIZE,
         gradient_accumulation_steps=GRAD_ACCUM,
         learning_rate=LR,
         num_train_epochs=EPOCH,
@@ -189,8 +191,8 @@ if __name__ == "__main__":
         lr_scheduler_type="cosine",
         logging_steps=0.1,
         save_steps=0.1,
-        eval_steps=0.1,
-        eval_strategy="steps",
+        # eval_steps=0.1,
+        # eval_strategy="steps",
         save_total_limit=2,
         bf16=True,
         tf32=True,
@@ -199,9 +201,11 @@ if __name__ == "__main__":
         max_grad_norm=1.0,
         report_to="wandb",
         # load_best_model_at_end=True,
-        load_best_model_at_end=False,
+        # load_best_model_at_end=False,
         # metric_for_best_model="eval_loss",
         # packing=True # A100なら動くかも
+        do_eval=False,
+        save_strategy="epoch"
     )
 
     trainer = SFTTrainer(
@@ -209,7 +213,7 @@ if __name__ == "__main__":
         processing_class=tokenizer,
         args=sft_config,
         train_dataset=train_ds,
-        eval_dataset=val_ds,
+        # eval_dataset=val_ds,
         # peft_config=lora_config,
     )
 

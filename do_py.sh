@@ -1,5 +1,5 @@
 #!/bin/bash
-EXP_NAME=exp006
+EXP_NAME=exp007
 DIR_NAME=outputs/$EXP_NAME/$(date +%Y%m%d%H%M%S)
 NOW=$(date +%Y%m%d%H%M%S)
 
