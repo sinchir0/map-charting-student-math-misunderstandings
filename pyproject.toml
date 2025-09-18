@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "autoawq>=0.2.9",
     "datasets>=4.0.0",
     "deepspeed>=0.17.5",
     "dotenv>=0.9.9",
