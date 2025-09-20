@@ -86,6 +86,12 @@ Correct: {Correct}
 StudentExplanation: {StudentExplanation}
 Category: {Category}
 """
+REQUEST_FORMAT = """\
+Question: {QuestionText}
+Answer: {MC_Answer}
+Correct: {Correct}
+Category: {Category}
+"""
 COLS = ["prompt", "completion"]
 DEBUG = False
 TARGET_COMPLETIONS = [
@@ -206,25 +212,69 @@ if __name__ == "__main__":
     train = make_completion(train)
     train = add_is_correct(train)
     
+    train["Category"] = train["Category"] + ":" + train["Misconception"]
+
     train["sample_info"] = train.apply(format_input, axis=1)
 
     # TODO: Question, Answer, Correct の組み合わせと、Category の組み合わせのproductを取るようにし、
     # 質問に対して、全ての誤解が少なくともn個は存在する状態にする。
 
-    for target in TARGET_COMPLETIONS:
-        same_df = train[train["completion"] == target]
-        diff_df = train[train["completion"] != target]
-    
+    # Question, Answer, Correct がuniqueなdfを取得する
+    unique_df = train[["QuestionText", "MC_Answer", "is_correct"]].drop_duplicates()
+
+    # Category の組み合わせを取得する
+    category_combinations = train[["Category"]].drop_duplicates()
+
+    # unique_dfとcategory_combinationsのdfについて
+    # unique_dfの各要素ごとに、category_combinationsの全要素がマージする
+    unique_df["key"] = 1
+    category_combinations["key"] = 1
+    merged_df = pd.merge(unique_df, category_combinations, on="key").drop("key", axis=1)
+
+    for _, row in merged_df.iterrows():
+        category = row["Category"]
+
+        # 参考情報の取得　＃
+        same_df = train[train["completion"] == category]
+        diff_df = train[train["completion"] != category]
+
         same_df_sampled = same_df.sample(n=SAME_SAMPLE_NUM)
         diff_df_sampled = diff_df.sample(n=DIFF_SAMPLE_NUM)
 
         same_sample_info = "\n\n".join([same_df_sampled.sample()["sample_info"].values[0] for _ in range(SAME_SAMPLE_NUM)])
         diff_sample_info = "\n\n".join([diff_df_sampled.sample()["sample_info"].values[0] for _ in range(DIFF_SAMPLE_NUM)])
 
+        ### 
+
+        # リクエストの生成
         request_text = GEN_PROMPT_FORMAT.format(
-            request_sample="",
+            request_sample=REQUEST_FORMAT.format(
+                QuestionText=row["QuestionText"],
+                MC_Answer=row["MC_Answer"],
+                Correct="Yes" if row["is_correct"] else "No",
+                Category=category,
+            ),
             same_samples=same_sample_info,
             different_samples=diff_sample_info,
         )
-
         pass
+        # GPT5にリクエストを投げる
+
+
+    # for target in TARGET_COMPLETIONS:
+    #     same_df = train[train["completion"] == target]
+    #     diff_df = train[train["completion"] != target]
+    
+    #     same_df_sampled = same_df.sample(n=SAME_SAMPLE_NUM)
+    #     diff_df_sampled = diff_df.sample(n=DIFF_SAMPLE_NUM)
+
+    #     same_sample_info = "\n\n".join([same_df_sampled.sample()["sample_info"].values[0] for _ in range(SAME_SAMPLE_NUM)])
+    #     diff_sample_info = "\n\n".join([diff_df_sampled.sample()["sample_info"].values[0] for _ in range(DIFF_SAMPLE_NUM)])
+
+    #     request_text = GEN_PROMPT_FORMAT.format(
+    #         request_sample="",
+    #         same_samples=same_sample_info,
+    #         different_samples=diff_sample_info,
+    #     )
+
+    pass
