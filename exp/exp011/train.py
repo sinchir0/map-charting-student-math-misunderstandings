@@ -22,15 +22,15 @@ import json
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp009_improve_prompt"
+EXP_NAME = "exp011_change_label_one_token"
 MODEL_NAME = "Qwen/Qwen3-8B"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
-MAX_LEN = 1536
+# MAX_LEN = 256
+MAX_LEN = 1024
 # BATCH_SIZE = 8
-# BATCH_SIZE = 6
-BATCH_SIZE = 4
+BATCH_SIZE = 6
 GRAD_ACCUM = 2
 LR = 2e-5
 EPOCH = 1
@@ -44,77 +44,74 @@ Answer: {MC_Answer}
 Correct: {Correct}
 Student Explanation: {StudentExplanation}
 
-Next, I will provide the names of the misconception labels along with their explanations. Please use them as a reference.
+Below are the available classifications you can choose from.
+Always provide your response using only the specified format.
 
-Adding_across — Adds numerators and denominators straight across (e.g., 1/2 + 1/3 = 2/5) instead of finding a common denominator.
-
-Adding_terms — Improperly combines unlike terms (adds coefficients/variables without respecting like‑term rules).
-
-Additive — Treats a non‑additive relation as additive—for example, adds quantities that should be multiplied or adds terms across a proportion.
-
-Base_rate — Ignores base rates/denominators in ratio or probability problems and focuses only on salient numbers.
-
-Certainty — Asserts absolute certainty (“always/never”) where the context requires conditional or case‑based reasoning.
-
-Definition — Restates a definition or property instead of applying it to compute or reason about the specific problem.
-
-Denominator-only_change — Forms an “equivalent fraction” by changing only the denominator (or only one part), breaking true equivalence.
-
-Division — Chooses division where a different operation is required, or divides in the wrong orientation (swapping dividend/divisor).
-
-Duplication — Double‑counts or repeats a quantity (e.g., multiplies both numerator and denominator by the same factor unnecessarily, or counts the same part twice).
-
-Firstterm — Focuses only on the first term or item, ignoring subsequent terms or conditions in an expression or word problem.
-
-FlipChange — Flips (inverts) and also changes something else simultaneously (e.g., uses “invert and multiply” where it does not apply).
-
-Ignores_zeroes — Drops or cancels zeros improperly (e.g., treats 120 ÷ 30 as “remove zeros” rather than legitimate simplification).
-
-Incomplete — The response is partially correct or relevant but omits a key step, constraint, or justification needed to reach the correct answer.
-
-Incorrect_equivalent_fraction_addition — Creates “equivalent” fractions incorrectly during addition (e.g., scales only one part or scales inconsistently).
-
-Interior — Misapplies a rule about interior quantities (e.g., interior angles/regions) or confuses interior vs. exterior notions.
-
-Inversion — Inverts quantities incorrectly (flips a fraction or reverses a ratio when not warranted).
-
-Inverse_operation — Applies an inverse operation in the wrong context (subtracts when should add, divides when should multiply, etc.).
-
-Irrelevant — The explanation does not address the question asked (off‑topic rationale or unrelated computation).
-
-Longer_is_bigger — Judges size by the “longer written form” (more digits/longer bar) rather than actual numeric magnitude.
-
-Mult — Assumes multiplication is the correct operation or multiplies across mechanically without considering meaning.
-
-Multiplying_by_4 — Applies an unjustified “×4” scaling (e.g., multiplies numerator and denominator by 4 or scales units by 4 without basis).
-
-Not_variable — Treats a variable as a label or fixed symbol rather than as an unknown to operate on algebraically.
-
-Positive — Drops or ignores negative signs; assumes quantities must be positive (e.g., turns ‘−’ into ‘+’ or adds magnitudes).
-
-Scale — Applies scaling inconsistently (e.g., scales one dimension but not another; confuses proportional vs. non‑proportional change).
-
-Shorter_is_bigger — Assumes a shorter written form indicates a larger value (reverse of “Longer_is_bigger”).
-
-Subtraction — Uses subtraction where addition/multiplication is required or subtracts in the wrong order (reverses minuend/subtrahend).
-
-SwapDividend — Swaps dividend/divisor or reverses ratio order, leading to a reciprocal result by mistake.
-
-Tacking — “Tacks on” digits or symbols (e.g., appends zeros or concatenates numbers) instead of performing the intended operation.
-
-Unknowable — Claims the problem cannot be solved with given information, even though it can (premature “insufficient information”).
-
-WNB — Whole Number Bias: treats fractions/ratios like whole numbers (e.g., judges 3/8 > 1/2 because 3>1 or 8>2).
-
-Whole_numbers_larger — Compares by whole‑number cues (larger numerators/denominators ⇒ larger value) instead of actual fraction magnitude.
-
-Wrong_Fraction — Builds an incorrect fraction model (wrong part/whole, swapped numerator/denominator, mismatched units).
-
-Wrong_Operation — Selects the wrong operation for the situation (adds where multiplication is required, etc.).
-
-Wrong_fraction — Same as “Wrong_Fraction”: constructs an incorrect fraction representation (wrong part/whole or swapped roles).
-
-Wrong_term — Selects or manipulates the wrong term in an expression (confuses terms vs. factors, or isolates the wrong part).
+■: False_Correct:NA,
+□: False_Misconception:Adding_across,
+▲: False_Misconception:Adding_terms,
+△: False_Misconception:Additive,
+▼: False_Misconception:Base_rate,
+▽: False_Misconception:Certainty,
+◆: False_Misconception:Definition,
+◇: False_Misconception:Denominator-only_change,
+○: False_Misconception:Division,
+●: False_Misconception:Duplication,
+★: False_Misconception:Firstterm,
+☆: False_Misconception:FlipChange,
+♦: False_Misconception:Ignores_zeroes,
+♥: False_Misconception:Incomplete,
+♠: False_Misconception:Incorrect_equivalent_fraction_addition,
+♣: False_Misconception:Interior,
+§: False_Misconception:Inverse_operation,
+†: False_Misconception:Inversion,
+‡: False_Misconception:Irrelevant,
+※: False_Misconception:Longer_is_bigger,
+∞: False_Misconception:Mult,
+±: False_Misconception:Multiplying_by_4,
+≠: False_Misconception:Not_variable,
+≈: False_Misconception:Positive,
+√: False_Misconception:Scale,
+∑: False_Misconception:Shorter_is_bigger,
+∏: False_Misconception:Subtraction,
+∆: False_Misconception:SwapDividend,
+Ω: False_Misconception:Tacking,
+μ: False_Misconception:Unknowable,
+∂: False_Misconception:WNB,
+→: False_Misconception:Whole_numbers_larger,
+←: False_Misconception:Wrong_Fraction,
+↑: False_Misconception:Wrong_Operation,
+↓: False_Misconception:Wrong_fraction,
+↔: False_Misconception:Wrong_term,
+↕: False_Neither:NA,
+〈: True_Correct:NA,
+〉: True_Misconception:Adding_across,
+『: True_Misconception:Additive,
+』: True_Misconception:Base_rate,
+│: True_Misconception:Definition,
+─: True_Misconception:Denominator-only_change,
+┌: True_Misconception:Division,
+┐: True_Misconception:Duplication,
+└: True_Misconception:Firstterm,
+┘: True_Misconception:FlipChange,
+┼: True_Misconception:Incomplete,
+█: True_Misconception:Incorrect_equivalent_fraction_addition,
+▓: True_Misconception:Inversion,
+▒: True_Misconception:Irrelevant,
+£: True_Misconception:Longer_is_bigger,
+¥: True_Misconception:Mult,
+€: True_Misconception:Multiplying_by_4,
+₩: True_Misconception:Not_variable,
+©: True_Misconception:Positive,
+®: True_Misconception:Shorter_is_bigger,
+™: True_Misconception:Subtraction,
+♪: True_Misconception:SwapDividend,
+♫: True_Misconception:Tacking,
+☀: True_Misconception:WNB,
+☁: True_Misconception:Whole_numbers_larger,
+☂: True_Misconception:Wrong_fraction,
+☃: True_Misconception:Wrong_term,
+☎: True_Neither:NA
 """
 COLS = ["prompt", "completion"]
 DEBUG = False
@@ -137,6 +134,78 @@ def make_completion(df: pd.DataFrame) -> pd.DataFrame:
     print(f"Train shape: {df.shape} with {n_classes} target classes")
     return df
 
+def change_completion_to_one_token(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "False_Correct:NA": "■",
+        "False_Misconception:Adding_across": "□",
+        "False_Misconception:Adding_terms": "▲",
+        "False_Misconception:Additive": "△",
+        "False_Misconception:Base_rate": "▼",
+        "False_Misconception:Certainty": "▽",
+        "False_Misconception:Definition": "◆",
+        "False_Misconception:Denominator-only_change": "◇",
+        "False_Misconception:Division": "○",
+        "False_Misconception:Duplication": "●",
+        "False_Misconception:Firstterm": "★",
+        "False_Misconception:FlipChange": "☆",
+        "False_Misconception:Ignores_zeroes": "♦",
+        "False_Misconception:Incomplete": "♥",
+        "False_Misconception:Incorrect_equivalent_fraction_addition": "♠",
+        "False_Misconception:Interior": "♣",
+        "False_Misconception:Inverse_operation": "§",
+        "False_Misconception:Inversion": "†",
+        "False_Misconception:Irrelevant": "‡",
+        "False_Misconception:Longer_is_bigger": "※",
+        "False_Misconception:Mult": "∞",
+        "False_Misconception:Multiplying_by_4": "±",
+        "False_Misconception:Not_variable": "≠",
+        "False_Misconception:Positive": "≈",
+        "False_Misconception:Scale": "√",
+        "False_Misconception:Shorter_is_bigger": "∑",
+        "False_Misconception:Subtraction": "∏",
+        "False_Misconception:SwapDividend": "∆",
+        "False_Misconception:Tacking": "Ω",
+        "False_Misconception:Unknowable": "μ",
+        "False_Misconception:WNB": "∂",
+        "False_Misconception:Whole_numbers_larger": "→",
+        "False_Misconception:Wrong_Fraction": "←",
+        "False_Misconception:Wrong_Operation": "↑",
+        "False_Misconception:Wrong_fraction": "↓",
+        "False_Misconception:Wrong_term": "↔",
+        "False_Neither:NA": "↕",
+        "True_Correct:NA": "〈",
+        "True_Misconception:Adding_across": "〉",
+        "True_Misconception:Additive": "『",
+        "True_Misconception:Base_rate": "』",
+        "True_Misconception:Definition": "│",
+        "True_Misconception:Denominator-only_change": "─",
+        "True_Misconception:Division": "┌",
+        "True_Misconception:Duplication": "┐",
+        "True_Misconception:Firstterm": "└",
+        "True_Misconception:FlipChange": "┘",
+        "True_Misconception:Incomplete": "┼",
+        "True_Misconception:Incorrect_equivalent_fraction_addition": "█",
+        "True_Misconception:Inversion": "▓",
+        "True_Misconception:Irrelevant": "▒",
+        "True_Misconception:Longer_is_bigger": "£",
+        "True_Misconception:Mult": "¥",
+        "True_Misconception:Multiplying_by_4": "€",
+        "True_Misconception:Not_variable": "₩",
+        "True_Misconception:Positive": "©",
+        "True_Misconception:Shorter_is_bigger": "®",
+        "True_Misconception:Subtraction": "™",
+        "True_Misconception:SwapDividend": "♪",
+        "True_Misconception:Tacking": "♫",
+        "True_Misconception:WNB": "☀",
+        "True_Misconception:Whole_numbers_larger": "☁",
+        "True_Misconception:Wrong_fraction": "☂",
+        "True_Misconception:Wrong_term": "☃",
+        "True_Neither:NA": "☎",
+    }
+
+    df["completion"] = df["completion"].map(mapping)
+
+    return df
 
 def add_is_correct(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -200,6 +269,7 @@ if __name__ == "__main__":
     train = pd.read_csv(DATA_PATH / "train.csv")
 
     train = make_completion(train)
+    train = change_completion_to_one_token(train)
     train = add_is_correct(train)
     train["prompt"] = train.apply(format_input, axis=1)
     print("Example prompt for our LLM:")
@@ -236,7 +306,7 @@ if __name__ == "__main__":
     print(f"Saved all_completions to {UPLOAD_PATH}/all_completions.json")
 
 
-    model, tokenizer = add_compeltion_token(model, tokenizer, all_completions)
+    # model, tokenizer = add_compeltion_token(model, tokenizer, all_completions)
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
