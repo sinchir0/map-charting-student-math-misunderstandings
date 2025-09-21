@@ -15,6 +15,7 @@ from trl import SFTConfig, SFTTrainer
 from datetime import datetime
 import json
 import wandb
+from openai import OpenAI
 
 import os
 import json
@@ -23,34 +24,31 @@ from kaggle.api.kaggle_api_extended import KaggleApi
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp001_cls"
-MODEL_NAME = "Qwen/Qwen3-0.6B"
-DATASET_NAME = f"{EXP_NAME}-{MODEL_NAME.split('/')[-1]}-{NOW}"
+EXP_NAME = "exp012_gen_data"
+DATASET_NAME = f"{EXP_NAME}-{NOW}"
 OUTPUT_PATH = f"outputs/{EXP_NAME}/{NOW}"
-CHECKPOINT_PATH = f"{OUTPUT_PATH}/checkpoint"
 UPLOAD_PATH = f"{OUTPUT_PATH}/upload"
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
-MAX_LEN = 256
-BATCH_SIZE = 8
-GRAD_ACCUM = 2
-LR = 2e-5
-EPOCH = 1
-SEED = 42
+
 GEN_PROMPT_FORMAT = """\
 You are a specialist in identifying misunderstandings that arise in responses to math problems.
 
-Based on the following “Information for generating StudentExplanation,” think of a possible “StudentExplanation.” Be sure to think carefully along the way about what kind of StudentExplanation would be appropriate. Finally, enclose your generated StudentExplanation in 【】.
+Based on the following “Information for generating StudentExplanation,” think of a possible “StudentExplanation”. Be sure to think carefully along the way about what kind of StudentExplanation would be appropriate. Finally, enclose your generated StudentExplanation in 【】.
 
 # Information for generating StudentExplanation
 {request_sample}
+
+The label **Correct** indicates that the StudentExplanation is accurate.  
+**Misconception** indicates that the StudentExplanation reveals the student holds a misunderstanding.  
+**Neither** applies when the StudentExplanation is neither correct nor clearly a misunderstanding.
 
 Below are an input example and a generation example.
 
 '''
 Input Example:
 Question: What fraction of the shape is not shaded? Give your answer in its simplest form. [Image: A triangle split into 9 equal smaller triangles. 6 of them are shaded.]
-Answer: \( \frac{1}{3} \)
+Answer: \\( \\frac{{1}}{{3}} \\)
 Correct: Yes
 Category: True_Misconception:Incomplete
 
@@ -79,6 +77,25 @@ After this, samples where Category and Misconception are the same, and samples w
 # Sample where Category and Misconception are different
 {different_samples}
 """
+
+# GEN_PROMPT_FORMAT = """\
+# You are a specialist in identifying misunderstandings that arise in responses to math problems.
+
+# Based on the following “Information for generating StudentExplanation,” think of a possible “StudentExplanation”. Be sure to think carefully along the way about what kind of StudentExplanation would be appropriate. Finally, enclose your generated StudentExplanation in 【】.
+
+# # Information for generating StudentExplanation
+# {request_sample}
+
+# After this, samples where Category and Misconception are the same, and samples where they differ, will be provided. Please use them as references when creating StudentExplanations.
+
+# # Sample where Category and Misconception are the same
+# {same_samples}
+
+# # Sample where Category and Misconception are different
+# {different_samples}
+# """
+
+
 SAMPLE_FORMAT = """\
 Question: {QuestionText}
 Answer: {MC_Answer}
@@ -94,51 +111,52 @@ Category: {Category}
 """
 COLS = ["prompt", "completion"]
 DEBUG = False
-TARGET_COMPLETIONS = [
-    "False_Misconception:Adding_terms",
-    "False_Misconception:Firstterm",
-    "False_Misconception:Multiplying_by_4",
-    "True_Misconception:Irrelevant",
-    "False_Misconception:FlipChange",
-    "False_Misconception:Division",
-    "False_Misconception:Definition",
-    "False_Misconception:Interior",
-    "True_Misconception:Additive",
-    "False_Misconception:Longer_is_bigger",
-    "False_Misconception:Ignores_zeroes",
-    "False_Misconception:Base_rate",
-    "False_Misconception:Inverse_operation",
-    "False_Misconception:Certainty",
-    "True_Misconception:Shorter_is_bigger",
-    "True_Misconception:Firstterm",
-    "True_Misconception:Wrong_term",
-    "True_Misconception:Incomplete",
-    "True_Misconception:SwapDividend",
-    "True_Misconception:Mult",
-    "True_Misconception:WNB",
-    "False_Misconception:Incorrect_equivalent_fraction_addition",
-    "True_Misconception:Wrong_fraction",
-    "False_Misconception:Shorter_is_bigger",
-    "False_Misconception:Wrong_Operation",
-    "True_Misconception:Duplication",
-    "True_Misconception:Division",
-    "True_Misconception:Inversion",
-    "True_Misconception:Denominator-only_change",
-    "True_Misconception:FlipChange",
-    "True_Misconception:Definition",
-    "True_Misconception:Multiplying_by_4",
-    "True_Misconception:Positive",
-    "True_Misconception:Subtraction",
-    "True_Misconception:Incorrect_equivalent_fraction_addition",
-    "True_Misconception:Not_variable",
-    "True_Misconception:Base_rate",
-    "True_Misconception:Whole_numbers_larger",
-    "True_Misconception:Adding_across",
-    "True_Misconception:Longer_is_bigger",
-]
+# TARGET_COMPLETIONS = [
+#     "False_Misconception:Adding_terms",
+#     "False_Misconception:Firstterm",
+#     "False_Misconception:Multiplying_by_4",
+#     "True_Misconception:Irrelevant",
+#     "False_Misconception:FlipChange",
+#     "False_Misconception:Division",
+#     "False_Misconception:Definition",
+#     "False_Misconception:Interior",
+#     "True_Misconception:Additive",
+#     "False_Misconception:Longer_is_bigger",
+#     "False_Misconception:Ignores_zeroes",
+#     "False_Misconception:Base_rate",
+#     "False_Misconception:Inverse_operation",
+#     "False_Misconception:Certainty",
+#     "True_Misconception:Shorter_is_bigger",
+#     "True_Misconception:Firstterm",
+#     "True_Misconception:Wrong_term",
+#     "True_Misconception:Incomplete",
+#     "True_Misconception:SwapDividend",
+#     "True_Misconception:Mult",
+#     "True_Misconception:WNB",
+#     "False_Misconception:Incorrect_equivalent_fraction_addition",
+#     "True_Misconception:Wrong_fraction",
+#     "False_Misconception:Shorter_is_bigger",
+#     "False_Misconception:Wrong_Operation",
+#     "True_Misconception:Duplication",
+#     "True_Misconception:Division",
+#     "True_Misconception:Inversion",
+#     "True_Misconception:Denominator-only_change",
+#     "True_Misconception:FlipChange",
+#     "True_Misconception:Definition",
+#     "True_Misconception:Multiplying_by_4",
+#     "True_Misconception:Positive",
+#     "True_Misconception:Subtraction",
+#     "True_Misconception:Incorrect_equivalent_fraction_addition",
+#     "True_Misconception:Not_variable",
+#     "True_Misconception:Base_rate",
+#     "True_Misconception:Whole_numbers_larger",
+#     "True_Misconception:Adding_across",
+#     "True_Misconception:Longer_is_bigger",
+# ]
 
 SAME_SAMPLE_NUM = 3
 DIFF_SAMPLE_NUM = 3
+SEED = 42
 
 def seed_everything(seed: int):
     random.seed(seed)
@@ -209,6 +227,10 @@ if __name__ == "__main__":
 
     train = pd.read_csv(DATA_PATH / "train.csv")
 
+    # QuestionIdとQuestionTextの対応を取得した辞書を作成する
+    tmp = train[["QuestionId", "QuestionText"]].drop_duplicates()
+    question_text_to_id_dict = dict(zip(tmp["QuestionText"], tmp["QuestionId"]))
+
     train = make_completion(train)
     train = add_is_correct(train)
     
@@ -216,65 +238,80 @@ if __name__ == "__main__":
 
     train["sample_info"] = train.apply(format_input, axis=1)
 
-    # TODO: Question, Answer, Correct の組み合わせと、Category の組み合わせのproductを取るようにし、
-    # 質問に対して、全ての誤解が少なくともn個は存在する状態にする。
+    # Question, Answer, Correct, Category がuniqueなdfを取得する
+    unique_df = train[["QuestionText", "MC_Answer", "is_correct", "Category"]].drop_duplicates()
 
-    # Question, Answer, Correct がuniqueなdfを取得する
-    unique_df = train[["QuestionText", "MC_Answer", "is_correct"]].drop_duplicates()
+    # Target のラベルに限定する。
+    # unique_df = unique_df[unique_df["Category"].isin(TARGET_COMPLETIONS)]
 
-    # Category の組み合わせを取得する
-    category_combinations = train[["Category"]].drop_duplicates()
+    unique_df = unique_df[:10]
 
-    # unique_dfとcategory_combinationsのdfについて
-    # unique_dfの各要素ごとに、category_combinationsの全要素がマージする
-    unique_df["key"] = 1
-    category_combinations["key"] = 1
-    merged_df = pd.merge(unique_df, category_combinations, on="key").drop("key", axis=1)
-
-    for _, row in merged_df.iterrows():
+    client = OpenAI()
+    generate_outputs = []
+    for _, row in unique_df.iterrows():
+        question_text = row["QuestionText"]
+        question_id = question_text_to_id_dict[question_text]
+        mc_answer = row["MC_Answer"]
+        is_correct = row["is_correct"]
         category = row["Category"]
 
-        # 参考情報の取得　＃
+        # 参考情報の取得
         same_df = train[train["completion"] == category]
         diff_df = train[train["completion"] != category]
 
-        same_df_sampled = same_df.sample(n=SAME_SAMPLE_NUM)
-        diff_df_sampled = diff_df.sample(n=DIFF_SAMPLE_NUM)
+        # サンプル数がデータ数より多い場合は存在する数だけ利用
+        same_n = min(SAME_SAMPLE_NUM, len(same_df))
+        diff_n = min(DIFF_SAMPLE_NUM, len(diff_df))
+        same_df_sampled = same_df.sample(n=same_n, replace=False)
+        diff_df_sampled = diff_df.sample(n=diff_n, replace=False)
 
-        same_sample_info = "\n\n".join([same_df_sampled.sample()["sample_info"].values[0] for _ in range(SAME_SAMPLE_NUM)])
-        diff_sample_info = "\n\n".join([diff_df_sampled.sample()["sample_info"].values[0] for _ in range(DIFF_SAMPLE_NUM)])
+        same_sample_info = "\n\n".join(same_df_sampled["sample_info"].values)
+        diff_sample_info = "\n\n".join(diff_df_sampled["sample_info"].values)
 
-        ### 
+        request_sample = REQUEST_FORMAT.format(
+            QuestionText=question_text,
+            MC_Answer=mc_answer,
+            Correct="Yes" if is_correct else "No",
+            Category=category,
+        )
 
         # リクエストの生成
         request_text = GEN_PROMPT_FORMAT.format(
-            request_sample=REQUEST_FORMAT.format(
-                QuestionText=row["QuestionText"],
-                MC_Answer=row["MC_Answer"],
-                Correct="Yes" if row["is_correct"] else "No",
-                Category=category,
-            ),
+            request_sample=request_sample,
             same_samples=same_sample_info,
             different_samples=diff_sample_info,
         )
-        pass
+        print(request_text)
+
         # GPT5にリクエストを投げる
+        result = client.responses.create(
+            model="gpt-5",
+            input=request_text,
+            reasoning={ "effort": "low" },
+            text={ "verbosity": "low" },
+        )
 
+        print(result.output_text)
+        gen_student_explanation = result.output_text.strip("【】")
 
-    # for target in TARGET_COMPLETIONS:
-    #     same_df = train[train["completion"] == target]
-    #     diff_df = train[train["completion"] != target]
+        generate_outputs.append([
+            question_id,
+            question_text,
+            mc_answer,
+            gen_student_explanation,
+            category.split(":")[0],
+            category.split(":")[1]
+        ])
     
-    #     same_df_sampled = same_df.sample(n=SAME_SAMPLE_NUM)
-    #     diff_df_sampled = diff_df.sample(n=DIFF_SAMPLE_NUM)
+    output_df = pd.DataFrame(generate_outputs, columns=[
+        "QuestionId",
+        "QuestionText",
+        "MC_Answer",
+        "StudentExplanation",
+        "Category",
+        "Misconception"
+    ])
+    # 行数を示す row_id 列を追加し、それに100000を追加する
+    output_df.insert(0, "row_id", range(100000, 100000 + len(output_df)))
 
-    #     same_sample_info = "\n\n".join([same_df_sampled.sample()["sample_info"].values[0] for _ in range(SAME_SAMPLE_NUM)])
-    #     diff_sample_info = "\n\n".join([diff_df_sampled.sample()["sample_info"].values[0] for _ in range(DIFF_SAMPLE_NUM)])
-
-    #     request_text = GEN_PROMPT_FORMAT.format(
-    #         request_sample="",
-    #         same_samples=same_sample_info,
-    #         different_samples=diff_sample_info,
-    #     )
-
-    pass
+    output_df.to_csv(f"{UPLOAD_PATH}/gen_data_{EXP_NAME}_{NOW}.csv", index=False)

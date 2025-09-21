@@ -12,6 +12,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "isort>=6.0.1",
     "kaggle>=1.7.4.5",
+    "openai>=1.90.0",
     "pandas>=2.3.2",
     "peft>=0.17.1",
     "ruff>=0.12.12",
