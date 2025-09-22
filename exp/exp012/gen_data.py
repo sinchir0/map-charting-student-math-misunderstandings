@@ -7,18 +7,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from datasets import Dataset
 from dotenv import load_dotenv
 from sklearn.model_selection import train_test_split
-from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
-from trl import SFTConfig, SFTTrainer
+from transformers import AutoModelForCausalLM,  PreTrainedTokenizer
 from datetime import datetime
-import json
-import wandb
 from openai import OpenAI
+import argparse
 
 import os
-import json
+
+from tqdm import tqdm
 
 from kaggle.api.kaggle_api_extended import KaggleApi
 
@@ -222,6 +220,14 @@ def add_completion_token(
     return model, tokenizer
 
 if __name__ == "__main__":
+    # Pathの指定
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', type=str, help='ディレクトリのパス')
+    args = parser.parse_args()
+    OUTPUT_PATH = args.dir if args.dir else f"outputs/{EXP_NAME}/{NOW}"
+    CHECKPOINT_PATH = f"{OUTPUT_PATH}/checkpoint"
+    UPLOAD_PATH = f"{OUTPUT_PATH}/upload"
+    
     load_dotenv(f"{ENV_PATH}/.env")
     # seed_everything(SEED)
 
@@ -245,12 +251,13 @@ if __name__ == "__main__":
 
     # Target のラベルに限定する。
     # unique_df = unique_df[unique_df["Category"].isin(TARGET_COMPLETIONS)]
-    unique_df = unique_df.sample(frac=1, random_state=SEED).reset_index(drop=True)  # シャッフル
-    unique_df = unique_df[:3]
+    if DEBUG:
+        unique_df = unique_df.sample(frac=1, random_state=SEED).reset_index(drop=True)  # シャッフル
+        unique_df = unique_df[:3]
 
     client = OpenAI()
     generate_outputs = []
-    for _, row in unique_df.iterrows():
+    for _, row in tqdm(unique_df.iterrows(), total=unique_df.shape[0]):
         question_text = row["QuestionText"]
         question_id = question_text_to_id_dict[question_text]
         mc_answer = row["MC_Answer"]
@@ -261,7 +268,7 @@ if __name__ == "__main__":
         same_df = train[train["completion"] == category]
         diff_df = train[train["completion"] != category]
 
-        for _ in range(MAKE_DATA_NUM_PER_REQUEST):  # 同じ質問で複数回生成したい場合はここの数を変更
+        for _ in tqdm(range(MAKE_DATA_NUM_PER_REQUEST), total=MAKE_DATA_NUM_PER_REQUEST):  # 同じ質問で複数回生成したい場合はここの数を変更
             # サンプル数がデータ数より多い場合は存在する数だけ利用
             same_n = min(SAME_SAMPLE_NUM, len(same_df))
             diff_n = min(DIFF_SAMPLE_NUM, len(diff_df))
@@ -286,7 +293,7 @@ if __name__ == "__main__":
                 same_samples=same_sample_info,
                 different_samples=diff_sample_info,
             )
-            print(request_text)
+            # print(request_text)
 
             # GPT5にリクエストを投げる
             result = client.responses.create(
@@ -297,7 +304,7 @@ if __name__ == "__main__":
                 temperature=TEMPERATURE
             )
 
-            print(result.output_text)
+            # print(result.output_text)
             gen_student_explanation = result.output_text.strip("【】")
 
             generate_outputs.append([
@@ -306,7 +313,8 @@ if __name__ == "__main__":
                 mc_answer,
                 gen_student_explanation,
                 category.split(":")[0],
-                category.split(":")[1]
+                category.split(":")[1],
+                request_text
             ])
     
     output_df = pd.DataFrame(generate_outputs, columns=[
@@ -315,7 +323,8 @@ if __name__ == "__main__":
         "MC_Answer",
         "StudentExplanation",
         "Category",
-        "Misconception"
+        "Misconception",
+        "RequestSample",
     ])
     # 行数を示す row_id 列を追加し、それに100000を追加する
     output_df.insert(0, "row_id", range(100000, 100000 + len(output_df)))
