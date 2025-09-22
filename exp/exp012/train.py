@@ -18,22 +18,21 @@ import wandb
 
 import os
 import json
-
+from sklearn.metrics import average_precision_score
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp012_change_label_one_token_ep3"
-MODEL_NAME = "Qwen/Qwen3-8B"
+EXP_NAME = "exp012_use_map_at_3_test"
+MODEL_NAME = "Qwen/Qwen3-0.6B"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
-# MAX_LEN = 256
-MAX_LEN = 1024
+MAX_LEN = 256
 # BATCH_SIZE = 8
-BATCH_SIZE = 6
+BATCH_SIZE = 1
 GRAD_ACCUM = 2
 LR = 2e-5
-EPOCH = 3
+EPOCH = 1
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
@@ -43,78 +42,9 @@ Question: {QuestionText}
 Answer: {MC_Answer}
 Correct: {Correct}
 Student Explanation: {StudentExplanation}
-
-Below are the available classifications you can choose from.
-Always provide your response using only the specified format.
-
-■: False_Correct:NA,
-□: False_Misconception:Adding_across,
-▲: False_Misconception:Adding_terms,
-△: False_Misconception:Additive,
-▼: False_Misconception:Base_rate,
-▽: False_Misconception:Certainty,
-◆: False_Misconception:Definition,
-◇: False_Misconception:Denominator-only_change,
-○: False_Misconception:Division,
-●: False_Misconception:Duplication,
-★: False_Misconception:Firstterm,
-☆: False_Misconception:FlipChange,
-♦: False_Misconception:Ignores_zeroes,
-♥: False_Misconception:Incomplete,
-♠: False_Misconception:Incorrect_equivalent_fraction_addition,
-♣: False_Misconception:Interior,
-§: False_Misconception:Inverse_operation,
-†: False_Misconception:Inversion,
-‡: False_Misconception:Irrelevant,
-※: False_Misconception:Longer_is_bigger,
-∞: False_Misconception:Mult,
-±: False_Misconception:Multiplying_by_4,
-≠: False_Misconception:Not_variable,
-≈: False_Misconception:Positive,
-√: False_Misconception:Scale,
-∑: False_Misconception:Shorter_is_bigger,
-∏: False_Misconception:Subtraction,
-∆: False_Misconception:SwapDividend,
-Ω: False_Misconception:Tacking,
-μ: False_Misconception:Unknowable,
-∂: False_Misconception:WNB,
-→: False_Misconception:Whole_numbers_larger,
-←: False_Misconception:Wrong_Fraction,
-↑: False_Misconception:Wrong_Operation,
-↓: False_Misconception:Wrong_fraction,
-↔: False_Misconception:Wrong_term,
-↕: False_Neither:NA,
-〈: True_Correct:NA,
-〉: True_Misconception:Adding_across,
-『: True_Misconception:Additive,
-』: True_Misconception:Base_rate,
-│: True_Misconception:Definition,
-─: True_Misconception:Denominator-only_change,
-┌: True_Misconception:Division,
-┐: True_Misconception:Duplication,
-└: True_Misconception:Firstterm,
-┘: True_Misconception:FlipChange,
-┼: True_Misconception:Incomplete,
-█: True_Misconception:Incorrect_equivalent_fraction_addition,
-▓: True_Misconception:Inversion,
-▒: True_Misconception:Irrelevant,
-£: True_Misconception:Longer_is_bigger,
-¥: True_Misconception:Mult,
-€: True_Misconception:Multiplying_by_4,
-₩: True_Misconception:Not_variable,
-©: True_Misconception:Positive,
-®: True_Misconception:Shorter_is_bigger,
-™: True_Misconception:Subtraction,
-♪: True_Misconception:SwapDividend,
-♫: True_Misconception:Tacking,
-☀: True_Misconception:WNB,
-☁: True_Misconception:Whole_numbers_larger,
-☂: True_Misconception:Wrong_fraction,
-☃: True_Misconception:Wrong_term,
-☎: True_Neither:NA
 """
 COLS = ["prompt", "completion"]
-DEBUG = False
+DEBUG = True
 USE_FOLD = 0
 
 def seed_everything(seed: int):
@@ -134,78 +64,6 @@ def make_completion(df: pd.DataFrame) -> pd.DataFrame:
     print(f"Train shape: {df.shape} with {n_classes} target classes")
     return df
 
-def change_completion_to_one_token(df: pd.DataFrame) -> pd.DataFrame:
-    mapping = {
-        "False_Correct:NA": "■",
-        "False_Misconception:Adding_across": "□",
-        "False_Misconception:Adding_terms": "▲",
-        "False_Misconception:Additive": "△",
-        "False_Misconception:Base_rate": "▼",
-        "False_Misconception:Certainty": "▽",
-        "False_Misconception:Definition": "◆",
-        "False_Misconception:Denominator-only_change": "◇",
-        "False_Misconception:Division": "○",
-        "False_Misconception:Duplication": "●",
-        "False_Misconception:Firstterm": "★",
-        "False_Misconception:FlipChange": "☆",
-        "False_Misconception:Ignores_zeroes": "♦",
-        "False_Misconception:Incomplete": "♥",
-        "False_Misconception:Incorrect_equivalent_fraction_addition": "♠",
-        "False_Misconception:Interior": "♣",
-        "False_Misconception:Inverse_operation": "§",
-        "False_Misconception:Inversion": "†",
-        "False_Misconception:Irrelevant": "‡",
-        "False_Misconception:Longer_is_bigger": "※",
-        "False_Misconception:Mult": "∞",
-        "False_Misconception:Multiplying_by_4": "±",
-        "False_Misconception:Not_variable": "≠",
-        "False_Misconception:Positive": "≈",
-        "False_Misconception:Scale": "√",
-        "False_Misconception:Shorter_is_bigger": "∑",
-        "False_Misconception:Subtraction": "∏",
-        "False_Misconception:SwapDividend": "∆",
-        "False_Misconception:Tacking": "Ω",
-        "False_Misconception:Unknowable": "μ",
-        "False_Misconception:WNB": "∂",
-        "False_Misconception:Whole_numbers_larger": "→",
-        "False_Misconception:Wrong_Fraction": "←",
-        "False_Misconception:Wrong_Operation": "↑",
-        "False_Misconception:Wrong_fraction": "↓",
-        "False_Misconception:Wrong_term": "↔",
-        "False_Neither:NA": "↕",
-        "True_Correct:NA": "〈",
-        "True_Misconception:Adding_across": "〉",
-        "True_Misconception:Additive": "『",
-        "True_Misconception:Base_rate": "』",
-        "True_Misconception:Definition": "│",
-        "True_Misconception:Denominator-only_change": "─",
-        "True_Misconception:Division": "┌",
-        "True_Misconception:Duplication": "┐",
-        "True_Misconception:Firstterm": "└",
-        "True_Misconception:FlipChange": "┘",
-        "True_Misconception:Incomplete": "┼",
-        "True_Misconception:Incorrect_equivalent_fraction_addition": "█",
-        "True_Misconception:Inversion": "▓",
-        "True_Misconception:Irrelevant": "▒",
-        "True_Misconception:Longer_is_bigger": "£",
-        "True_Misconception:Mult": "¥",
-        "True_Misconception:Multiplying_by_4": "€",
-        "True_Misconception:Not_variable": "₩",
-        "True_Misconception:Positive": "©",
-        "True_Misconception:Shorter_is_bigger": "®",
-        "True_Misconception:Subtraction": "™",
-        "True_Misconception:SwapDividend": "♪",
-        "True_Misconception:Tacking": "♫",
-        "True_Misconception:WNB": "☀",
-        "True_Misconception:Whole_numbers_larger": "☁",
-        "True_Misconception:Wrong_fraction": "☂",
-        "True_Misconception:Wrong_term": "☃",
-        "True_Neither:NA": "☎",
-    }
-
-    df["completion"] = df["completion"].map(mapping)
-
-    return df
 
 def add_is_correct(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -249,6 +107,25 @@ def add_compeltion_token(
 
     return model, tokenizer
 
+def compute_map3(eval_pred):
+    logits, labels = eval_pred
+    logits = torch.from_numpy(logits)
+    probs = torch.nn.functional.softmax(logits, dim=-1).numpy()
+
+    top3 = np.argsort(-probs, axis=1)[:, :3]  # Top 3 predictions
+    match = (top3 == labels[:, None])
+
+    # Compute MAP@3 manually
+    map3 = 0
+    for i in range(len(labels)):
+        if match[i, 0]:
+            map3 += 1.0
+        elif match[i, 1]:
+            map3 += 1.0 / 2
+        elif match[i, 2]:
+            map3 += 1.0 / 3
+    return {"map@3": map3 / len(labels)}
+
 if __name__ == "__main__":
     # Pathの指定
     parser = argparse.ArgumentParser()
@@ -269,14 +146,13 @@ if __name__ == "__main__":
     train = pd.read_csv(DATA_PATH / "train.csv")
 
     train = make_completion(train)
-    train = change_completion_to_one_token(train)
     train = add_is_correct(train)
     train["prompt"] = train.apply(format_input, axis=1)
     print("Example prompt for our LLM:")
     print(train["prompt"].values[0])
 
     if DEBUG:
-        train = train.sample(100, random_state=SEED).reset_index(drop=True)
+        train = train.sample(1000, random_state=SEED).reset_index(drop=True)
 
     fold_dict = json.load(open(FOLD_PATH))
     train["fold"] = train["row_id"].astype(str).map(fold_dict)
@@ -306,7 +182,7 @@ if __name__ == "__main__":
     print(f"Saved all_completions to {UPLOAD_PATH}/all_completions.json")
 
 
-    # model, tokenizer = add_compeltion_token(model, tokenizer, all_completions)
+    model, tokenizer = add_compeltion_token(model, tokenizer, all_completions)
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -342,9 +218,14 @@ if __name__ == "__main__":
         max_grad_norm=1.0,
         report_to="wandb",
         load_best_model_at_end=True,
-        metric_for_best_model="eval_loss"
+        metric_for_best_model="map@3"
         # packing=True # A100なら動くかも
     )
+
+    def preprocess_logits_for_metrics(logits, labels):
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        return logits# .argmax(dim=-1)
 
     trainer = SFTTrainer(
         model=model,
@@ -353,6 +234,8 @@ if __name__ == "__main__":
         train_dataset=train_ds,
         eval_dataset=val_ds,
         # peft_config=lora_config,
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics, # これをつけないとなぜかcompute_metricsが使えない
+        compute_metrics=compute_map3
     )
 
     trainer.train()
