@@ -22,18 +22,18 @@ import json
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp011_change_label_one_token"
+EXP_NAME = "exp013_add_gen_data"
 MODEL_NAME = "Qwen/Qwen3-8B"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
 # MAX_LEN = 256
 MAX_LEN = 1024
-# BATCH_SIZE = 8
-BATCH_SIZE = 6
+BATCH_SIZE = 8
+# BATCH_SIZE = 6
 GRAD_ACCUM = 2
 LR = 2e-5
-EPOCH = 3
+EPOCH = 1
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
@@ -267,6 +267,7 @@ if __name__ == "__main__":
     os.makedirs(UPLOAD_PATH, exist_ok=True)
 
     train = pd.read_csv(DATA_PATH / "train.csv")
+    gen_data = pd.read_csv("gen_data/gen_data_exp012_gen_data_20250921101316.csv")
 
     train = make_completion(train)
     train = change_completion_to_one_token(train)
@@ -275,11 +276,22 @@ if __name__ == "__main__":
     print("Example prompt for our LLM:")
     print(train["prompt"].values[0])
 
+    gen_data = make_completion(gen_data)
+    gen_data = change_completion_to_one_token(gen_data)
+    gen_data = add_is_correct(gen_data)
+    gen_data["prompt"] = gen_data.apply(format_input, axis=1)
+    print("Example prompt for gen_data:")
+    print(gen_data["prompt"].values[0])
+
     if DEBUG:
         train = train.sample(100, random_state=SEED).reset_index(drop=True)
 
     fold_dict = json.load(open(FOLD_PATH))
     train["fold"] = train["row_id"].astype(str).map(fold_dict)
+    gen_data["fold"] = 99
+
+    # merge train and gen_data
+    train = pd.concat([train, gen_data])
 
     train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
     val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
@@ -293,7 +305,7 @@ if __name__ == "__main__":
         MODEL_NAME,
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
-        # attn_implementation="flash_attention_2", # A100なら動くかも
+        attn_implementation="flash_attention_2", # A100なら動くかも
         device_map="auto",
     )
 
@@ -304,7 +316,6 @@ if __name__ == "__main__":
     with open(f"{UPLOAD_PATH}/all_completions.json", "w", encoding="utf-8") as f:
         json.dump(all_completions, f, ensure_ascii=False, indent=2)
     print(f"Saved all_completions to {UPLOAD_PATH}/all_completions.json")
-
 
     # model, tokenizer = add_compeltion_token(model, tokenizer, all_completions)
 
@@ -341,9 +352,9 @@ if __name__ == "__main__":
         gradient_checkpointing=True,
         max_grad_norm=1.0,
         report_to="wandb",
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss"
-        # packing=True # A100なら動くかも
+        # load_best_model_at_end=True, # 一時的な処置、ちゃんとevalデータに対してMAP@3を計算するようにする
+        # metric_for_best_model="eval_loss" # 一時的な処置、ちゃんとevalデータに対してMAP@3を計算するようにする
+        packing=True # A100なら動くかも
     )
 
     trainer = SFTTrainer(
