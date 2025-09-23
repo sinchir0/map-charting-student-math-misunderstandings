@@ -110,8 +110,84 @@ if __name__ == "__main__":
         prediction = [tokenizer.decode([predicted_token_id]) for predicted_token_id in predicted_token_ids]
         predictions.append(prediction)
 
+    inverted_mapping = {
+        "■": "False_Correct:NA",
+        "□": "False_Misconception:Adding_across",
+        "▲": "False_Misconception:Adding_terms",
+        "△": "False_Misconception:Additive",
+        "▼": "False_Misconception:Base_rate",
+        "▽": "False_Misconception:Certainty",
+        "◆": "False_Misconception:Definition",
+        "◇": "False_Misconception:Denominator-only_change",
+        "○": "False_Misconception:Division",
+        "●": "False_Misconception:Duplication",
+        "★": "False_Misconception:Firstterm",
+        "☆": "False_Misconception:FlipChange",
+        "♦": "False_Misconception:Ignores_zeroes",
+        "♥": "False_Misconception:Incomplete",
+        "♠": "False_Misconception:Incorrect_equivalent_fraction_addition",
+        "♣": "False_Misconception:Interior",
+        "§": "False_Misconception:Inverse_operation",
+        "†": "False_Misconception:Inversion",
+        "‡": "False_Misconception:Irrelevant",
+        "※": "False_Misconception:Longer_is_bigger",
+        "∞": "False_Misconception:Mult",
+        "±": "False_Misconception:Multiplying_by_4",
+        "≠": "False_Misconception:Not_variable",
+        "≈": "False_Misconception:Positive",
+        "√": "False_Misconception:Scale",
+        "∑": "False_Misconception:Shorter_is_bigger",
+        "∏": "False_Misconception:Subtraction",
+        "∆": "False_Misconception:SwapDividend",
+        "Ω": "False_Misconception:Tacking",
+        "μ": "False_Misconception:Unknowable",
+        "∂": "False_Misconception:WNB",
+        "→": "False_Misconception:Whole_numbers_larger",
+        "←": "False_Misconception:Wrong_Fraction",
+        "↑": "False_Misconception:Wrong_Operation",
+        "↓": "False_Misconception:Wrong_fraction",
+        "↔": "False_Misconception:Wrong_term",
+        "↕": "False_Neither:NA",
+        "〈": "True_Correct:NA",
+        "〉": "True_Misconception:Adding_across",
+        "『": "True_Misconception:Additive",
+        "』": "True_Misconception:Base_rate",
+        "│": "True_Misconception:Definition",
+        "─": "True_Misconception:Denominator-only_change",
+        "┌": "True_Misconception:Division",
+        "┐": "True_Misconception:Duplication",
+        "└": "True_Misconception:Firstterm",
+        "┘": "True_Misconception:FlipChange",
+        "┼": "True_Misconception:Incomplete",
+        "█": "True_Misconception:Incorrect_equivalent_fraction_addition",
+        "▓": "True_Misconception:Inversion",
+        "▒": "True_Misconception:Irrelevant",
+        "£": "True_Misconception:Longer_is_bigger",
+        "¥": "True_Misconception:Mult",
+        "€": "True_Misconception:Multiplying_by_4",
+        "₩": "True_Misconception:Not_variable",
+        "©": "True_Misconception:Positive",
+        "®": "True_Misconception:Shorter_is_bigger",
+        "™": "True_Misconception:Subtraction",
+        "♪": "True_Misconception:SwapDividend",
+        "♫": "True_Misconception:Tacking",
+        "☀": "True_Misconception:WNB",
+        "☁": "True_Misconception:Whole_numbers_larger",
+        "☂": "True_Misconception:Wrong_fraction",
+        "☃": "True_Misconception:Wrong_term",
+        "☎": "True_Neither:NA",
+    }
+
+    predictions = [
+        [inverted_mapping[pred] for pred in prediction]
+        for prediction in predictions
+    ]
+
     # 結果を保存
     val_df["prediction"] = predictions
+
+    # 正解を元に戻す
+    val_df["completion"] = val_df["completion"].apply(lambda x: inverted_mapping[x])
 
     # 結果の一部を表示
     print(f"\nvLLM推論完了: {len(predictions)}件")
@@ -149,6 +225,9 @@ if __name__ == "__main__":
         json.dump(results, f, ensure_ascii=False, indent=2)
     print(f"\n評価結果を {OUT_DIR}/evaluation_results.json に保存しました")
     
+    # row_idで小さい方からsortする
+    val_df = val_df.sort_values(by="row_id")
+
     # 結果をCSVに保存
-    val_df[["prompt", "completion", "prediction", "score"]].to_csv(f"{OUT_DIR}/validation_results.csv", index=False)
+    val_df[["row_id", "prompt", "completion", "prediction", "score"]].to_csv(f"{OUT_DIR}/validation_results.csv", index=False)
     print(f"\n推論結果を {OUT_DIR}/validation_results.csv に保存しました")
