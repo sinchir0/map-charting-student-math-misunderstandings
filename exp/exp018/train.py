@@ -22,26 +22,29 @@ import json
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp013_add_gen_data"
+EXP_NAME = "exp018_add_choice_and_correct_answer_2ep"
 MODEL_NAME = "Qwen/Qwen3-8B"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
 # MAX_LEN = 256
-MAX_LEN = 1024
+# MAX_LEN = 1024
+MAX_LEN = 1152
 # BATCH_SIZE = 8
 BATCH_SIZE = 6
 GRAD_ACCUM = 2
 LR = 2e-5
-EPOCH = 1
+EPOCH = 2
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
 Based on the information provided below, please determine what kind of misunderstanding the student has.
 
 Question: {QuestionText}
-Answer: {MC_Answer}
-Correct: {Correct}
+All Choices: {AllChoice}
+Correct Answer: {CorrectChoice}
+Student's Choice: {MC_Answer}
+Is Correct?: {Correct}
 Student Explanation: {StudentExplanation}
 
 Below are the available classifications you can choose from.
@@ -207,13 +210,14 @@ def change_completion_to_one_token(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def add_is_correct(df: pd.DataFrame) -> pd.DataFrame:
+def add_is_correct_and_correct_choice(df: pd.DataFrame) -> pd.DataFrame:
     """
     前提として、ラベル付けが誤っていることがある。
     よって、QuestionIdに対して、MC_AnswerがTrueになっている回答が最も多いものを、真の正解として扱う。
     """
     idx = df.apply(lambda row: row["Category"].split("_")[0], axis=1) == "True"
     correct = df.loc[idx].copy()
+    
     correct["count"] = correct.groupby(["QuestionId", "MC_Answer"]).MC_Answer.transform(
         "count"
     )
@@ -224,12 +228,25 @@ def add_is_correct(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.merge(correct, on=["QuestionId", "MC_Answer"], how="left")
     df["is_correct"] = df["is_correct"].fillna(0)
+    
+    # 正解の選択肢を追加する
+    df["correct_choice"] = df["QuestionId"].map(
+        correct.set_index("QuestionId")["MC_Answer"]
+    )
     return df
 
+def add_all_choice(df: pd.DataFrame) -> pd.DataFrame:
+    unique_df = df[["QuestionId", "MC_Answer"]].drop_duplicates()
+    question_id_to_all_choice = unique_df.groupby("QuestionId")["MC_Answer"].apply(list)
+
+    df["AllChoice"] = df["QuestionId"].map(question_id_to_all_choice)
+    return df
 
 def format_input(row) -> str:
     return PROMPT_FORMAT.format(
         QuestionText=row["QuestionText"],
+        AllChoice=row["AllChoice"], # NOTE: listのまま入れている。
+        CorrectChoice=row["correct_choice"],
         MC_Answer=row["MC_Answer"],
         Correct="Yes" if row["is_correct"] else "No",
         StudentExplanation=row["StudentExplanation"],
@@ -267,31 +284,20 @@ if __name__ == "__main__":
     os.makedirs(UPLOAD_PATH, exist_ok=True)
 
     train = pd.read_csv(DATA_PATH / "train.csv")
-    gen_data = pd.read_csv("gen_data/gen_data_exp012_gen_data_20250921101316.csv")
 
     train = make_completion(train)
     train = change_completion_to_one_token(train)
-    train = add_is_correct(train)
+    train = add_is_correct_and_correct_choice(train)
+    train = add_all_choice(train)
     train["prompt"] = train.apply(format_input, axis=1)
     print("Example prompt for our LLM:")
     print(train["prompt"].values[0])
-
-    gen_data = make_completion(gen_data)
-    gen_data = change_completion_to_one_token(gen_data)
-    gen_data = add_is_correct(gen_data)
-    gen_data["prompt"] = gen_data.apply(format_input, axis=1)
-    print("Example prompt for gen_data:")
-    print(gen_data["prompt"].values[0])
 
     if DEBUG:
         train = train.sample(100, random_state=SEED).reset_index(drop=True)
 
     fold_dict = json.load(open(FOLD_PATH))
     train["fold"] = train["row_id"].astype(str).map(fold_dict)
-    gen_data["fold"] = 99
-
-    # merge train and gen_data
-    train = pd.concat([train, gen_data])
 
     train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
     val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
@@ -316,6 +322,7 @@ if __name__ == "__main__":
     with open(f"{UPLOAD_PATH}/all_completions.json", "w", encoding="utf-8") as f:
         json.dump(all_completions, f, ensure_ascii=False, indent=2)
     print(f"Saved all_completions to {UPLOAD_PATH}/all_completions.json")
+
 
     # model, tokenizer = add_compeltion_token(model, tokenizer, all_completions)
 
@@ -352,8 +359,8 @@ if __name__ == "__main__":
         gradient_checkpointing=True,
         max_grad_norm=1.0,
         report_to="wandb",
-        # load_best_model_at_end=True, # 一時的な処置、ちゃんとevalデータに対してMAP@3を計算するようにする
-        # metric_for_best_model="eval_loss" # 一時的な処置、ちゃんとevalデータに対してMAP@3を計算するようにする
+        # load_best_model_at_end=True,
+        # metric_for_best_model="eval_loss",
         packing=True # A100なら動くかも
     )
 

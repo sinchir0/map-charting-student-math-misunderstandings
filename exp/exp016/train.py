@@ -23,17 +23,18 @@ import json
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
 EXP_NAME = "exp016_add_choice_and_correct_answer"
-MODEL_NAME = "Qwen/Qwen3-0.6B"
+MODEL_NAME = "Qwen/Qwen3-8B"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
 # MAX_LEN = 256
-MAX_LEN = 1024
+# MAX_LEN = 1024
+MAX_LEN = 1152
 # BATCH_SIZE = 8
 BATCH_SIZE = 6
 GRAD_ACCUM = 2
 LR = 2e-5
-EPOCH = 1
+EPOCH = 3
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.

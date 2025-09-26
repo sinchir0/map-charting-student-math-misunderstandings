@@ -1,9 +1,8 @@
 #!/bin/bash
-EXP_NAME=exp016
+EXP_NAME=exp014
 DIR_NAME=outputs/$EXP_NAME/$(date +%Y%m%d%H%M%S)
 NOW=$(date +%Y%m%d%H%M%S)
 
-gcloud auth login
 uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME
 uv run python exp/$EXP_NAME/evaluate.py --dir $DIR_NAME/upload
 uv run python exp/$EXP_NAME/data_upload.py --dir $DIR_NAME/upload --dataset-name $EXP_NAME-$NOW
