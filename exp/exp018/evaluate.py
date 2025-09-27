@@ -137,7 +137,7 @@ def change_to_original_labels(val_df):
     val_df["completion"] = ground_truth
 
     prediction = [
-        [inverted_mapping[pred] for pred in eval(prediction)]
+        [inverted_mapping[pred] for pred in prediction]
         for prediction in val_df["prediction"].tolist()
     ]
 
@@ -236,6 +236,9 @@ if __name__ == "__main__":
     # iconを元のラベルに戻す
     val_df = change_to_original_labels(val_df)
 
+    # row_idを小さい順にソートする
+    val_df = val_df.sort_values("row_id")
+
     # 結果をCSVに保存
-    val_df[["prompt", "completion", "prediction", "score"]].to_csv(f"{OUT_DIR}/validation_results.csv", index=False)
+    val_df[["row_id", "prompt", "completion", "prediction", "score"]].to_csv(f"{OUT_DIR}/validation_results.csv", index=False)
     print(f"\n推論結果を {OUT_DIR}/validation_results.csv に保存しました")

@@ -224,7 +224,7 @@ if __name__ == "__main__":
     with open(f"{OUT_DIR}/evaluation_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
     print(f"\n評価結果を {OUT_DIR}/evaluation_results.json に保存しました")
-    
+
     # row_idで小さい方からsortする
     val_df = val_df.sort_values(by="row_id")
 

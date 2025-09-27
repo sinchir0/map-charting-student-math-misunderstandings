@@ -353,7 +353,7 @@ if __name__ == "__main__":
         save_steps=0.1,
         # eval_steps=0.1,
         # eval_strategy="steps",
-        save_total_limit=2,
+        save_total_limit=5,
         bf16=True,
         tf32=True,
         fp16=False,

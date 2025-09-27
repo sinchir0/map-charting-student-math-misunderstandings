@@ -90,6 +90,13 @@ uv run accelerate launch --config_file config/accelerate_config_zero3.yaml \
     exp/exp007/train.py
 ```
 
+## Kaggle からのダウンロード
+```bash
+kaggle datasets download sinchir0/exp018-20250924144032 -p outputs/exp018
+unzip outputs/exp018/exp018-20250924144032.zip -d outputs/exp018
+rm -rf outputs/exp018/exp018-20250924144032.zip
+```
+
 ## 注意点
 
 ### 仮想環境
