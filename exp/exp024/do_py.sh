@@ -5,7 +5,7 @@ NOW=$(TZ=Asia/Tokyo date +%Y%m%d%H%M%S)
 DIR_NAME=outputs/exp024/20250928124526
 
 gcloud auth login
-# uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME
+uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME
 
 # checkpointを利用する場合、NOWの時間を既存のディレクトリに変更する
 # uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME --use_checkpoint
@@ -22,7 +22,7 @@ uv run python exp/$EXP_NAME/summarize_map_at_3.py --dir $DIR_NAME
 uv run python exp/$EXP_NAME/copy_best_cv_to_upload.py --dir $DIR_NAME
 
 # Kaggleへアップロード
-uv run python exp/$EXP_NAME/data_upload.py --dir $DIR_NAME --dataset-name $EXP_NAME-$NOW
+uv run python exp/$EXP_NAME/data_upload.py --dir $DIR_NAME/upload --dataset-name $EXP_NAME-$NOW
 
 # GCSへのアップロード
 gcloud storage cp -r $DIR_NAME gs://saito-map/${DIR_NAME#outputs/}

@@ -20,7 +20,7 @@ import pytz
 import os
 import json
 
-DEBUG = False
+DEBUG = True
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now(pytz.timezone('Asia/Tokyo')).strftime("%Y%m%d%H%M%S")
 EXP_NAME = "exp027_use_acemath"
@@ -284,12 +284,13 @@ if __name__ == "__main__":
         MODEL_NAME,
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2", # A100なら動くかも
+        # attn_implementation="flash_attention_2", # A100なら動くかも
         device_map="auto",
     )
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    
+    tokenizer.padding_side = "left"
+
     all_completions = train["completion"].unique().tolist()
     
     with open(f"{UPLOAD_PATH}/all_completions.json", "w", encoding="utf-8") as f:
