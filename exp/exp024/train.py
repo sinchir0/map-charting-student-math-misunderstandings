@@ -112,7 +112,7 @@ Z: True_Misconception:Not_variable,
 |: True_Misconception:Whole_numbers_larger,
 ¤: True_Misconception:Wrong_fraction,
 ~: True_Misconception:Wrong_term,
-¢: True_Neither:NA\
+¢: True_Neither:NA
 """
 
 COLS = ["prompt", "completion"]
