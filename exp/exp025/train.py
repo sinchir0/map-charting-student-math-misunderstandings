@@ -374,12 +374,13 @@ if __name__ == "__main__":
         MODEL_NAME,
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2", # A100なら動くかも
+        # attn_implementation="flash_attention_2", # A100なら動くかも
         device_map="auto",
     )
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    
+    tokenizer.padding_side = "left"
+
     all_completions = train["completion"].unique().tolist()
     
     with open(f"{UPLOAD_PATH}/all_completions.json", "w", encoding="utf-8") as f:
@@ -412,7 +413,7 @@ if __name__ == "__main__":
         save_steps=SAVE_STEPS,
         eval_steps=EVAL_STEPS,
         eval_strategy="steps",
-        save_total_limit=10,
+        save_total_limit=8,
         bf16=True,
         tf32=True,
         fp16=False,
@@ -433,7 +434,17 @@ if __name__ == "__main__":
         # peft_config=lora_config,
     )
 
-    trainer.train(resume_from_checkpoint=CHECKPOINT_PATH if args.use_checkpoint else None)
+    # CHECKPOINT_PATH の存在するパスのうち、最も数字が大きいものを選択する
+    if args.use_checkpoint:
+        checkpoint_dirs = [d for d in os.listdir(CHECKPOINT_PATH) if d.startswith("checkpoint-")]
+        if checkpoint_dirs:
+            latest_checkpoint = max(checkpoint_dirs, key=lambda x: int(x.split("-")[1]))
+            print(f"Resuming training from checkpoint: {latest_checkpoint}")
+        else:
+            print("No checkpoint found, starting training from scratch.")
+            trainer.train()
+
+    trainer.train(resume_from_checkpoint=f"{CHECKPOINT_PATH}/{latest_checkpoint}" if args.use_checkpoint else None)
 
     # 保存
     # trainer.save_model(UPLOAD_PATH)
