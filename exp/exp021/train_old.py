@@ -15,37 +15,34 @@ from datetime import datetime
 import argparse
 import json
 import wandb
-import pytz
 
 import os
 import json
 
-
+DEBUG = False
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
-NOW = datetime.now(pytz.timezone('Asia/Tokyo')).strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp020_add_choice_and_correct_answer_2ep_fulltrain"
-MODEL_NAME = "Qwen/Qwen3-8B"
+NOW = datetime.now().strftime("%Y%m%d%H%M%S")
+EXP_NAME = "exp021_use_deepseeek"
+MODEL_NAME = "deepseek-ai/deepseek-math-7b-instruct"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
 # MAX_LEN = 256
-# MAX_LEN = 1024
 MAX_LEN = 1152
-# BATCH_SIZE = 8
 BATCH_SIZE = 6
 GRAD_ACCUM = 2
+SAVE_STEPS = 0.1
+EVAL_STEPS = 0.1
 LR = 2e-5
-EPOCH = 2
+EPOCH = 3
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
 Based on the information provided below, please determine what kind of misunderstanding the student has.
 
 Question: {QuestionText}
-All Choices: {AllChoice}
-Correct Answer: {CorrectChoice}
-Student's Choice: {MC_Answer}
-Is Correct?: {Correct}
+Answer: {MC_Answer}
+Correct: {Correct}
 Student Explanation: {StudentExplanation}
 
 Below are the available classifications you can choose from.
@@ -118,7 +115,6 @@ Always provide your response using only the specified format.
 ☎: True_Neither:NA
 """
 COLS = ["prompt", "completion"]
-DEBUG = False
 USE_FOLD = 0
 
 def seed_everything(seed: int):
@@ -211,14 +207,13 @@ def change_completion_to_one_token(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def add_is_correct_and_correct_choice(df: pd.DataFrame) -> pd.DataFrame:
+def add_is_correct(df: pd.DataFrame) -> pd.DataFrame:
     """
     前提として、ラベル付けが誤っていることがある。
     よって、QuestionIdに対して、MC_AnswerがTrueになっている回答が最も多いものを、真の正解として扱う。
     """
     idx = df.apply(lambda row: row["Category"].split("_")[0], axis=1) == "True"
     correct = df.loc[idx].copy()
-    
     correct["count"] = correct.groupby(["QuestionId", "MC_Answer"]).MC_Answer.transform(
         "count"
     )
@@ -229,25 +224,12 @@ def add_is_correct_and_correct_choice(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.merge(correct, on=["QuestionId", "MC_Answer"], how="left")
     df["is_correct"] = df["is_correct"].fillna(0)
-    
-    # 正解の選択肢を追加する
-    df["correct_choice"] = df["QuestionId"].map(
-        correct.set_index("QuestionId")["MC_Answer"]
-    )
     return df
 
-def add_all_choice(df: pd.DataFrame) -> pd.DataFrame:
-    unique_df = df[["QuestionId", "MC_Answer"]].drop_duplicates()
-    question_id_to_all_choice = unique_df.groupby("QuestionId")["MC_Answer"].apply(list)
-
-    df["AllChoice"] = df["QuestionId"].map(question_id_to_all_choice)
-    return df
 
 def format_input(row) -> str:
     return PROMPT_FORMAT.format(
         QuestionText=row["QuestionText"],
-        AllChoice=row["AllChoice"], # NOTE: listのまま入れている。
-        CorrectChoice=row["correct_choice"],
         MC_Answer=row["MC_Answer"],
         Correct="Yes" if row["is_correct"] else "No",
         StudentExplanation=row["StudentExplanation"],
@@ -288,26 +270,26 @@ if __name__ == "__main__":
 
     train = make_completion(train)
     train = change_completion_to_one_token(train)
-    train = add_is_correct_and_correct_choice(train)
-    train = add_all_choice(train)
+    train = add_is_correct(train)
     train["prompt"] = train.apply(format_input, axis=1)
     print("Example prompt for our LLM:")
     print(train["prompt"].values[0])
 
     if DEBUG:
         train = train.sample(100, random_state=SEED).reset_index(drop=True)
+        SAVE_STEPS = 0.5
+        EVAL_STEPS = 0.5
 
     fold_dict = json.load(open(FOLD_PATH))
     train["fold"] = train["row_id"].astype(str).map(fold_dict)
 
-    # train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
-    # val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
+    train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
+    val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
 
-    # val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
+    val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
 
-    train_df = train.copy()
     train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
-    # val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
+    val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
@@ -343,7 +325,7 @@ if __name__ == "__main__":
     sft_config = SFTConfig(
         output_dir=CHECKPOINT_PATH,
         per_device_train_batch_size=BATCH_SIZE,
-        # per_device_eval_batch_size=BATCH_SIZE,
+        per_device_eval_batch_size=BATCH_SIZE,
         gradient_accumulation_steps=GRAD_ACCUM,
         learning_rate=LR,
         num_train_epochs=EPOCH,
@@ -351,9 +333,9 @@ if __name__ == "__main__":
         warmup_ratio=0.03,
         lr_scheduler_type="cosine",
         logging_steps=0.1,
-        save_steps=0.1,
-        # eval_steps=0.1,
-        # eval_strategy="steps",
+        save_steps=SAVE_STEPS,
+        eval_steps=EVAL_STEPS,
+        eval_strategy="steps",
         save_total_limit=5,
         bf16=True,
         tf32=True,
@@ -361,8 +343,8 @@ if __name__ == "__main__":
         gradient_checkpointing=True,
         max_grad_norm=1.0,
         report_to="wandb",
-        # load_best_model_at_end=True,
-        # metric_for_best_model="eval_loss",
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
         packing=True # A100なら動くかも
     )
 
@@ -371,7 +353,7 @@ if __name__ == "__main__":
         processing_class=tokenizer,
         args=sft_config,
         train_dataset=train_ds,
-        # eval_dataset=val_ds,
+        eval_dataset=val_ds,
         # peft_config=lora_config,
     )
 

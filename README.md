@@ -13,31 +13,6 @@ GitHub Copilot(任意)
 uv sync & uv sync --extra flash-attn
 ```
 
-## バックグラウンドにて、複数のノートブックを直列に実行する
-```
-# あらかじめ、mutiple_run.sh内に実行したいnotebookを記載する
-nohup ./shell/multiple_run.sh &
-```
-
-## 動いているかの確認
-```
-ps aux | grep python
-```
-
-## Kill
-```
-pkill multiple_run && pkill runnb
-```
-
-## git系
-
-```
-git add -u
-git config --global user.email "dekunattou@gmail.com"
-git commit -m "add"
-git push origin main
-```
-
 ## コンペティションデータのダウンロード
 
 ### セッティング
@@ -59,6 +34,8 @@ git push origin main
 ```
 ./shell/setting_shell.sh
 ```
+
+その後、「View」-> 「Command Pallet」-> 「Terminal: Select Default Profile」 -> zsh
 
 ## GitHubへのアクセス権限の設定
 ```
