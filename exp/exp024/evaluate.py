@@ -9,7 +9,7 @@ import argparse
 
 # ref: https://www.kaggle.com/code/aerdem4/eedi-qwen32b-vllm-with-logits-processor-zoo
 DATA_PATH = Path("data")
-MAX_LEN = 1024
+MAX_LEN = 1156
 SEED = 42
 DEBUG = False
 
@@ -111,85 +111,85 @@ if __name__ == "__main__":
         prediction = [tokenizer.decode([predicted_token_id]) for predicted_token_id in predicted_token_ids]
         predictions.append(prediction)
     
-    # inverted_mapping = {
-    #     "■": "False_Correct:NA",
-    #     "□": "False_Misconception:Adding_across",
-    #     "▲": "False_Misconception:Adding_terms",
-    #     "△": "False_Misconception:Additive",
-    #     "▼": "False_Misconception:Base_rate",
-    #     "▽": "False_Misconception:Certainty",
-    #     "◆": "False_Misconception:Definition",
-    #     "◇": "False_Misconception:Denominator-only_change",
-    #     "○": "False_Misconception:Division",
-    #     "●": "False_Misconception:Duplication",
-    #     "★": "False_Misconception:Firstterm",
-    #     "☆": "False_Misconception:FlipChange",
-    #     "♦": "False_Misconception:Ignores_zeroes",
-    #     "♥": "False_Misconception:Incomplete",
-    #     "♠": "False_Misconception:Incorrect_equivalent_fraction_addition",
-    #     "♣": "False_Misconception:Interior",
-    #     "§": "False_Misconception:Inverse_operation",
-    #     "†": "False_Misconception:Inversion",
-    #     "‡": "False_Misconception:Irrelevant",
-    #     "※": "False_Misconception:Longer_is_bigger",
-    #     "∞": "False_Misconception:Mult",
-    #     "±": "False_Misconception:Multiplying_by_4",
-    #     "≠": "False_Misconception:Not_variable",
-    #     "≈": "False_Misconception:Positive",
-    #     "√": "False_Misconception:Scale",
-    #     "∑": "False_Misconception:Shorter_is_bigger",
-    #     "∏": "False_Misconception:Subtraction",
-    #     "∆": "False_Misconception:SwapDividend",
-    #     "Ω": "False_Misconception:Tacking",
-    #     "μ": "False_Misconception:Unknowable",
-    #     "∂": "False_Misconception:WNB",
-    #     "→": "False_Misconception:Whole_numbers_larger",
-    #     "←": "False_Misconception:Wrong_Fraction",
-    #     "↑": "False_Misconception:Wrong_Operation",
-    #     "↓": "False_Misconception:Wrong_fraction",
-    #     "↔": "False_Misconception:Wrong_term",
-    #     "↕": "False_Neither:NA",
-    #     "〈": "True_Correct:NA",
-    #     "〉": "True_Misconception:Adding_across",
-    #     "『": "True_Misconception:Additive",
-    #     "』": "True_Misconception:Base_rate",
-    #     "│": "True_Misconception:Definition",
-    #     "─": "True_Misconception:Denominator-only_change",
-    #     "┌": "True_Misconception:Division",
-    #     "┐": "True_Misconception:Duplication",
-    #     "└": "True_Misconception:Firstterm",
-    #     "┘": "True_Misconception:FlipChange",
-    #     "┼": "True_Misconception:Incomplete",
-    #     "█": "True_Misconception:Incorrect_equivalent_fraction_addition",
-    #     "▓": "True_Misconception:Inversion",
-    #     "▒": "True_Misconception:Irrelevant",
-    #     "£": "True_Misconception:Longer_is_bigger",
-    #     "¥": "True_Misconception:Mult",
-    #     "€": "True_Misconception:Multiplying_by_4",
-    #     "₩": "True_Misconception:Not_variable",
-    #     "©": "True_Misconception:Positive",
-    #     "®": "True_Misconception:Shorter_is_bigger",
-    #     "™": "True_Misconception:Subtraction",
-    #     "♪": "True_Misconception:SwapDividend",
-    #     "♫": "True_Misconception:Tacking",
-    #     "☀": "True_Misconception:WNB",
-    #     "☁": "True_Misconception:Whole_numbers_larger",
-    #     "☂": "True_Misconception:Wrong_fraction",
-    #     "☃": "True_Misconception:Wrong_term",
-    #     "☎": "True_Neither:NA",
-    # }
+    inverted_mapping = {
+        "0": "False_Correct:NA",
+        "1": "False_Misconception:Adding_across",
+        "2": "False_Misconception:Adding_terms",
+        "3": "False_Misconception:Additive",
+        "4": "False_Misconception:Base_rate",
+        "5": "False_Misconception:Certainty",
+        "6": "False_Misconception:Definition",
+        "7": "False_Misconception:Denominator-only_change",
+        "8": "False_Misconception:Division",
+        "9": "False_Misconception:Duplication",
+        "a": "False_Misconception:Firstterm",
+        "b": "False_Misconception:FlipChange",
+        "c": "False_Misconception:Ignores_zeroes",
+        "d": "False_Misconception:Incomplete",
+        "e": "False_Misconception:Incorrect_equivalent_fraction_addition",
+        "f": "False_Misconception:Interior",
+        "g": "False_Misconception:Inverse_operation",
+        "h": "False_Misconception:Inversion",
+        "i": "False_Misconception:Irrelevant",
+        "j": "False_Misconception:Longer_is_bigger",
+        "k": "False_Misconception:Mult",
+        "l": "False_Misconception:Multiplying_by_4",
+        "m": "False_Misconception:Not_variable",
+        "n": "False_Misconception:Positive",
+        "o": "False_Misconception:Scale",
+        "p": "False_Misconception:Shorter_is_bigger",
+        "q": "False_Misconception:Subtraction",
+        "r": "False_Misconception:SwapDividend",
+        "s": "False_Misconception:Tacking",
+        "t": "False_Misconception:Unknowable",
+        "u": "False_Misconception:WNB",
+        "v": "False_Misconception:Whole_numbers_larger",
+        "w": "False_Misconception:Wrong_Fraction",
+        "x": "False_Misconception:Wrong_Operation",
+        "y": "False_Misconception:Wrong_fraction",
+        "z": "False_Misconception:Wrong_term",
+        "A": "False_Neither:NA",
+        "B": "True_Correct:NA",
+        "C": "True_Misconception:Adding_across",
+        "D": "True_Misconception:Additive",
+        "E": "True_Misconception:Base_rate",
+        "F": "True_Misconception:Definition",
+        "G": "True_Misconception:Denominator-only_change",
+        "H": "True_Misconception:Division",
+        "I": "True_Misconception:Duplication",
+        "J": "True_Misconception:Firstterm",
+        "K": "True_Misconception:FlipChange",
+        "L": "True_Misconception:Incomplete",
+        "M": "True_Misconception:Incorrect_equivalent_fraction_addition",
+        "N": "True_Misconception:Inversion",
+        "O": "True_Misconception:Irrelevant",
+        "P": "True_Misconception:Longer_is_bigger",
+        "Q": "True_Misconception:Mult",
+        "R": "True_Misconception:Multiplying_by_4",
+        "S": "True_Misconception:Not_variable",
+        "T": "True_Misconception:Positive",
+        "U": "True_Misconception:Shorter_is_bigger",
+        "V": "True_Misconception:Subtraction",
+        "W": "True_Misconception:SwapDividend",
+        "X": "True_Misconception:Tacking",
+        "Y": "True_Misconception:WNB",
+        "Z": "True_Misconception:Whole_numbers_larger",
+        "!": "True_Misconception:Wrong_fraction",
+        "#": "True_Misconception:Wrong_term",
+        "$": "True_Neither:NA"
+    }
     
-    # # 予測結果を逆マッピング,マッピングできない場合はそのままにする
-    # predictions = [
-    #     [inverted_mapping.get(pred, pred) for pred in prediction]
-    #     for prediction in predictions
-    # ]
+    # 予測結果を逆マッピング,マッピングできない場合はそのままにする
+    predictions = [
+        [inverted_mapping.get(pred, pred) for pred in prediction]
+        for prediction in predictions
+    ]
     
     # 結果を保存
     val_df["prediction"] = predictions
 
     # 正解を元に戻す
-    # val_df["completion"] = val_df["completion"].apply(lambda x: inverted_mapping[x])
+    val_df["completion"] = val_df["completion"].apply(lambda x: inverted_mapping[x])
 
     # 結果の一部を表示
     print(f"\nvLLM推論完了: {len(predictions)}件")

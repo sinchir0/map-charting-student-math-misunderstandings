@@ -1,10 +1,11 @@
 #!/bin/bash
 EXP_NAME=exp024
 NOW=$(TZ=Asia/Tokyo date +%Y%m%d%H%M%S)
-DIR_NAME=outputs/$EXP_NAME/$NOW
+# DIR_NAME=outputs/$EXP_NAME/$NOW
+DIR_NAME=outputs/exp024/20250928124526
 
 gcloud auth login
-uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME
+# uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME
 
 # checkpointを利用する場合、NOWの時間を既存のディレクトリに変更する
 # uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME --use_checkpoint
