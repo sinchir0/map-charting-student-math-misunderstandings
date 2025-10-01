@@ -16,11 +16,12 @@ import argparse
 import json
 import wandb
 import pytz
+import math
 
 import os
 import json
 
-DEBUG = True
+DEBUG = False
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now(pytz.timezone('Asia/Tokyo')).strftime("%Y%m%d%H%M%S")
 EXP_NAME = "exp027_use_acemath"
@@ -31,10 +32,8 @@ ENV_PATH = Path("env_file")
 MAX_LEN = 1156
 BATCH_SIZE = 6
 GRAD_ACCUM = 2
-SAVE_STEPS = 0.1
-EVAL_STEPS = 0.1
 LR = 2e-5
-EPOCH = 1
+EPOCH = 3
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
@@ -309,6 +308,12 @@ if __name__ == "__main__":
     #     task_type="CAUSAL_LM",
     # )
 
+    optim_steps_per_epoch = math.ceil(len(train_ds) / (BATCH_SIZE * GRAD_ACCUM))
+    total_optim_steps = optim_steps_per_epoch * EPOCH
+
+    # 全体の10%間隔（= 全体を10分割）
+    interval_steps = max(1, total_optim_steps // 10)
+
     sft_config = SFTConfig(
         output_dir=CHECKPOINT_PATH,
         per_device_train_batch_size=BATCH_SIZE,
@@ -319,11 +324,11 @@ if __name__ == "__main__":
         max_length=MAX_LEN,
         warmup_ratio=0.03,
         lr_scheduler_type="cosine",
-        logging_steps=0.1,
-        save_steps=SAVE_STEPS,
-        eval_steps=EVAL_STEPS,
+        logging_steps=interval_steps,
+        save_steps=interval_steps,
+        eval_steps=interval_steps,
         eval_strategy="steps",
-        save_total_limit=10,
+        save_total_limit=6,
         bf16=True,
         tf32=True,
         fp16=False,
@@ -344,7 +349,17 @@ if __name__ == "__main__":
         # peft_config=lora_config,
     )
 
-    trainer.train(resume_from_checkpoint=CHECKPOINT_PATH if args.use_checkpoint else None)
+    # CHECKPOINT_PATH の存在するパスのうち、最も数字が大きいものを選択する
+    if args.use_checkpoint:
+        checkpoint_dirs = [d for d in os.listdir(CHECKPOINT_PATH) if d.startswith("checkpoint-")]
+        if checkpoint_dirs:
+            latest_checkpoint = max(checkpoint_dirs, key=lambda x: int(x.split("-")[1]))
+            print(f"Resuming training from checkpoint: {latest_checkpoint}")
+        else:
+            print("No checkpoint found, starting training from scratch.")
+            trainer.train()
+
+    trainer.train(resume_from_checkpoint=f"{CHECKPOINT_PATH}/{latest_checkpoint}" if args.use_checkpoint else None)
 
     # 保存
     # trainer.save_model(UPLOAD_PATH)

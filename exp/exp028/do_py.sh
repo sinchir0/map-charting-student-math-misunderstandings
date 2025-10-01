@@ -27,4 +27,4 @@ uv run python exp/$EXP_NAME/data_upload.py --dir $DIR_NAME --dataset-name $EXP_N
 gcloud storage cp -r $DIR_NAME gs://saito-map/${DIR_NAME#outputs/}
 
 # インスタンスを落とす
-gcloud compute instances stop saito-gpu-map-calc --zone=us-central1-a --discard-local-ssd=false
+gcloud compute instances stop saito-gpu-map-calc-1t --zone=us-central1-c --discard-local-ssd=false

@@ -1,14 +1,14 @@
 #!/bin/bash
-EXP_NAME=exp025
+EXP_NAME=exp029
 NOW=$(TZ=Asia/Tokyo date +%Y%m%d%H%M%S)
 # DIR_NAME=outputs/$EXP_NAME/$NOW
-DIR_NAME=outputs/exp025/20250928181646
+DIR_NAME=outputs/exp029/20250930221639
 
-# gcloud auth login
+gcloud auth login
 # uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME
 
 # checkpointを利用する場合、NOWの時間を既存のディレクトリに変更する
-uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME --use_checkpoint
+# uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME --use_checkpoint
 
 # DIR_NAME/checkpoint配下の全ディレクトリでevaluate.pyを実行
 for d in $DIR_NAME/checkpoint/*/; do
@@ -28,4 +28,4 @@ uv run python exp/$EXP_NAME/data_upload.py --dir $DIR_NAME --dataset-name $EXP_N
 gcloud storage cp -r $DIR_NAME gs://saito-map/${DIR_NAME#outputs/}
 
 # インスタンスを落とす
-gcloud compute instances stop saito-gpu-map-calc --zone=us-central1-a --discard-local-ssd=false
+# gcloud compute instances stop saito-gpu-map-calc-1t --zone=us-central1-c --discard-local-ssd=false
