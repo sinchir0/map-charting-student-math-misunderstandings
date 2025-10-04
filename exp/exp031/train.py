@@ -9,7 +9,9 @@ import pandas as pd
 import torch
 from datasets import Dataset
 from dotenv import load_dotenv
-from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import LoraConfig
+
 from trl import SFTConfig, SFTTrainer
 from datetime import datetime
 import argparse
@@ -23,17 +25,17 @@ import json
 DEBUG = False
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now(pytz.timezone('Asia/Tokyo')).strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp025_add_gen_data"
-MODEL_NAME = "Qwen/Qwen3-8B"
+EXP_NAME = "exp031_qwen_32B_awq"
+MODEL_NAME = "Qwen/Qwen3-32B-AWQ"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
-MAX_LEN = 1024 # NOTE: truncateしてしまうデータがありそう。1152にする。
-BATCH_SIZE = 6
+MAX_LEN = 1152
+BATCH_SIZE = 12
 GRAD_ACCUM = 2
 SAVE_STEPS = 0.1
 EVAL_STEPS = 0.1
-LR = 2e-5
+LR = 1e-4
 EPOCH = 2
 SEED = 42
 PROMPT_FORMAT = """\
@@ -237,83 +239,6 @@ def change_completion_to_one_token(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def filter_gen_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    生成データのうち、性能が改善したものに限定して利用する
-    https://www.notion.so/MAP-Charting-Student-Math-Misunderstandings-26023e5b234d808e96b1e42879f527ba?p=27c23e5b234d80f6bc4eeab4bbdb49e2&pm=s
-    """
-    # 次の要素をどちらも満たす行のみを残す
-    # QuestionID	completion
-    # 33471	False_Misconception:Wrong_fraction
-    # 33471	True_Misconception:Wrong_fraction
-    # 31777	False_Misconception:Wrong_Fraction
-    # 31777	True_Neither:NA
-    # 31774	False_Misconception:SwapDividend
-    # 31774	True_Neither:NA
-    # 32833	False_Misconception:Inversion
-    # 32833	False_Neither:NA
-    # 32833	True_Neither:NA
-    # 91695	True_Correct:NA
-    # 91695	True_Neither:NA
-    # 33474	True_Neither:NA
-    # 109465	False_Misconception:Certainty
-    # 76870	False_Misconception:Definition
-    # 76870	False_Misconception:Unknowable
-    # 76870	True_Neither:NA
-    # 31772	True_Correct:NA
-    # 31772	True_Misconception:Incomplete
-    # 32835	False_Misconception:Shorter_is_bigger
-    # 32835	True_Correct:NA
-    # 32829	False_Misconception:Inverse_operation
-    # 32829	False_Misconception:Not_variable
-    # 32829	True_Correct:NA
-    # 33472	False_Misconception:Adding_across
-    # 33472	True_Correct:NA
-    # 31778	False_Misconception:Irrelevant
-    # 31778	True_Correct:NA
-    # 31778	True_Misconception:Additive
-    # 31778	True_Misconception:Irrelevant
-    # 31778	True_Neither:NA
-
-    valid_pairs = [
-        (33471, "False_Misconception:Wrong_fraction"),
-        (33471, "True_Misconception:Wrong_fraction"),
-        (31777, "False_Misconception:Wrong_Fraction"),
-        (31777, "True_Neither:NA"),
-        (31774, "False_Misconception:SwapDividend"),
-        (31774, "True_Neither:NA"),
-        (32833, "False_Misconception:Inversion"),
-        (32833, "False_Neither:NA"),
-        (32833, "True_Neither:NA"),
-        (91695, "True_Correct:NA"),
-        (91695, "True_Neither:NA"),
-        (33474, "True_Neither:NA"),
-        (109465, "False_Misconception:Certainty"),
-        (76870, "False_Misconception:Definition"),
-        (76870, "False_Misconception:Unknowable"),
-        (76870, "True_Neither:NA"),
-        (31772, "True_Correct:NA"),
-        (31772, "True_Misconception:Incomplete"),
-        (32835, "False_Misconception:Shorter_is_bigger"),
-        (32835, "True_Correct:NA"),
-        (32829, "False_Misconception:Inverse_operation"),
-        (32829, "False_Misconception:Not_variable"),
-        (32829, "True_Correct:NA"),
-        (33472, "False_Misconception:Adding_across"),
-        (33472, "True_Correct:NA"),
-        (31778, "False_Misconception:Irrelevant"),
-        (31778, "True_Correct:NA"),
-        (31778, "True_Misconception:Additive"),
-        (31778, "True_Misconception:Irrelevant"),
-        (31778, "True_Neither:NA"),
-    ]
-    
-    df["is_valid"] = df.apply(lambda row: (row["QuestionId"], row["completion"]) in valid_pairs, axis=1)
-    df = df[df["is_valid"]].reset_index(drop=True)
-    df = df.drop(columns=["is_valid"])
-    return df
-
-
 if __name__ == "__main__":
     # Pathの指定
     parser = argparse.ArgumentParser()
@@ -354,24 +279,19 @@ if __name__ == "__main__":
 
     val_df.to_csv(f"{UPLOAD_PATH}/val_df.csv", index=False)
 
-    # 合成データを追加する
-    gen_data = pd.read_csv("gen_data/gen_data_exp012_gen_data_20250921101316.csv")
-    print(f"Generated data shape: {gen_data.shape}")
-    gen_data = make_completion(gen_data)
-    gen_data = filter_gen_data(gen_data)
-    print(f"Generated data after filter shape: {gen_data.shape}")
-    gen_data = change_completion_to_one_token(gen_data)
-    gen_data = add_is_correct(gen_data)
-    gen_data["prompt"] = gen_data.apply(format_input, axis=1)
-    gen_data["fold"] = 99    
-
-    train = pd.concat([train, gen_data])
-
     train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
     val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
+    # quantization_config = BitsAndBytesConfig(
+    #     load_in_4bit=True, # 4 ビットに量子化された形式で読み込むように指定
+    #     bnb_4bit_use_double_quant=True, # 二重量子化の指定
+    #     bnb_4bit_quant_type="nf4", # 4 ビット量子化のデータ型として NF4 を指定
+    #     bnb_4bit_compute_dtype=torch.bfloat16 # 計算時のデータ型を指定
+    # )
+
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
+        # quantization_config=quantization_config,
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         # attn_implementation="flash_attention_2", # A100なら動くかも
@@ -379,7 +299,7 @@ if __name__ == "__main__":
     )
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    tokenizer.padding_side = "left"
+    tokenizer.padding_side  = "left"
 
     all_completions = train["completion"].unique().tolist()
     
@@ -390,14 +310,14 @@ if __name__ == "__main__":
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
-    # lora_config = LoraConfig(
-    #     r=8,
-    #     target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-    #     lora_alpha=64,
-    #     lora_dropout=0.05,
-    #     bias="none",
-    #     task_type="CAUSAL_LM",
-    # )
+    lora_config = LoraConfig(
+        r=8,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        lora_alpha=64,
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
 
     sft_config = SFTConfig(
         output_dir=CHECKPOINT_PATH,
@@ -413,7 +333,7 @@ if __name__ == "__main__":
         save_steps=SAVE_STEPS,
         eval_steps=EVAL_STEPS,
         eval_strategy="steps",
-        save_total_limit=6,
+        save_total_limit=10,
         bf16=True,
         tf32=True,
         fp16=False,
@@ -431,21 +351,11 @@ if __name__ == "__main__":
         args=sft_config,
         train_dataset=train_ds,
         eval_dataset=val_ds,
-        # peft_config=lora_config,
+        peft_config=lora_config,
     )
 
-    # CHECKPOINT_PATH の存在するパスのうち、最も数字が大きいものを選択する
-    if args.use_checkpoint:
-        checkpoint_dirs = [d for d in os.listdir(CHECKPOINT_PATH) if d.startswith("checkpoint-")]
-        if checkpoint_dirs:
-            latest_checkpoint = max(checkpoint_dirs, key=lambda x: int(x.split("-")[1]))
-            print(f"Resuming training from checkpoint: {latest_checkpoint}")
-        else:
-            print("No checkpoint found, starting training from scratch.")
-            trainer.train()
-
-    trainer.train(resume_from_checkpoint=f"{CHECKPOINT_PATH}/{latest_checkpoint}" if args.use_checkpoint else None)
+    trainer.train(resume_from_checkpoint=CHECKPOINT_PATH if args.use_checkpoint else None)
 
     # 保存
-    # trainer.save_model(UPLOAD_PATH)
+    trainer.save_model(UPLOAD_PATH)
     tokenizer.save_pretrained(UPLOAD_PATH)

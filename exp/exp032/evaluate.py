@@ -1,7 +1,6 @@
 import os
 import json
 from vllm import LLM, SamplingParams
-from vllm.lora.request import LoRARequest
 from transformers import AutoTokenizer, LogitsProcessor
 import torch
 import pandas as pd
@@ -13,7 +12,6 @@ DATA_PATH = Path("data")
 MAX_LEN = 1024
 SEED = 42
 DEBUG = False
-MODEL_NAME = "Qwen/Qwen3-32B"
 
 os.environ["VLLM_USE_V1"] = "0" # Kaggle環境に合わせるため
 
@@ -83,15 +81,12 @@ if __name__ == "__main__":
     allowed_token_ids = [tokenizer.encode(str(i), add_special_tokens=False)[0] for i in all_completions]
 
     vllm_model = LLM(
-        # model=str(OUT_DIR),
-        model=MODEL_NAME,
+        model=str(OUT_DIR),
         dtype=torch.float16, # Kaggle環境ではbfloat16が使えないため、合わせる
         gpu_memory_utilization=0.95,
         enforce_eager=True,
         max_model_len=MAX_LEN,
         seed=SEED,
-        enable_lora=True,
-        quantization="bitsandbytes",
     )
 
     # サンプリングパラメータ設定
@@ -105,16 +100,10 @@ if __name__ == "__main__":
         logits_processors=[LabelOnlyLogitsProcessor(allowed_token_ids)],
     )
 
-    lora_req = LoRARequest("adapter", 1, str(OUT_DIR))
-
     # val_df全体に対して推論実行
     print("\n=== vLLM推論開始 ===")
     prompts = val_df["prompt"].tolist()
-    outputs = vllm_model.generate(
-        prompts,
-        sampling_params,
-        lora_request=lora_req
-    )
+    outputs = vllm_model.generate(prompts, sampling_params)
 
     predictions = []
     for output in outputs:
