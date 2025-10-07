@@ -24,19 +24,18 @@ import json
 DEBUG = False
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now(pytz.timezone('Asia/Tokyo')).strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp032_use_takaito_data_half_label_only_cand"
+EXP_NAME = "exp034_use_takaito_data_use_half_label"
 MODEL_NAME = "Qwen/Qwen3-8B"
 MISCONCEPTION_CANDIDATE_PATH = Path("outputs/question_id_to_misconception_candidate/question_id_to_misconception_candidate_half_label.json")
 DATA_PATH = Path("data/takaito_data")
 ENV_PATH = Path("env_file")
-MAX_LEN = 512
-BATCH_SIZE = 8
+MAX_LEN = 1024
+BATCH_SIZE = 6
 GRAD_ACCUM = 2
-SAVE_STEPS = 0.1
-EVAL_STEPS = 0.1
-LR = 2e-05
+LR = 2e-5
 EPOCH = 3
 SEED = 42
+EVAL_NUM = 10
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
 Based on the information provided below, determine whether the student's explanation is correct, a misconception, or neither.
@@ -46,15 +45,44 @@ Student Answer: {MC_Answer}
 Whether the student's answer is correct: {Correct}
 Student Explanation: {StudentExplanation}
 
-When making your judgment, choose one label from the Candidates. Among the Candidates, any option other than Correct or Neither is considered a Misconception candidate.
-Label Candidates: {MisconceptionCandidate}
+Below are the available classifications you can choose from.
 
-If the student has a correct understanding, choose Correct.
-If the student has a misconception, choose one of the Misconception candidates.
-If the student does not have a correct understanding but none of the Candidates represent an appropriate misconception, choose Neither.
-
-In the Candidates list, each label has a symbol appended after a vertical bar ( | ).
-Respond using only the symbol of the chosen label.
+■: Correct
+□: Neither
+♠: Incomplete
+→: Whole Number Bias
+Ω: Swap Dividend
+±: Mult
+♦: Flip Change
+※: Irrelevant
+↑: Wrong Fraction
+▼: Additive
+≈: Not Variable
+△: Adding Terms
+†: Inverse Operation
+‡: Inversion
+★: Duplication
+↓: Wrong Operation
+←: Whole Numbers Larger
+∞: Longer Is Bigger
+♥: Ignores Zeroes
+∏: Shorter Is Bigger
+▲: Adding Across
+○: Denominator Only Change
+♣: Incorrect Equivalent Fraction Addition
+●: Division
+∆: Subtraction
+∂: Unknowable
+◇: Definition
+§: Interior
+√: Positive
+μ: Tacking
+↕: Wrong Term
+☆: First Term
+▽: Base Rate
+≠: Multiplying
+◆: Certainty
+∑: Scale
 """
 
 
@@ -76,8 +104,7 @@ def format_input(row) -> str:
         QuestionText=row["QuestionText"],
         MC_Answer=row["MC_Answer"],
         Correct="Yes" if row["is_correct"] else "No",
-        StudentExplanation=row["StudentExplanation"],
-        MisconceptionCandidate=row["misconception_candidate"]
+        StudentExplanation=row["StudentExplanation"]
     )
 
 def add_is_correct(df: pd.DataFrame) -> pd.DataFrame:
@@ -142,11 +169,10 @@ if __name__ == "__main__":
     train["completion"] = train["symbol_label"]
     print("Example prompt for our LLM:")
     print(train["prompt"].values[0])
-    pass
+    
     if DEBUG:
         train = train.sample(100, random_state=SEED).reset_index(drop=True)
-        SAVE_STEPS = 0.5
-        EVAL_STEPS = 0.5
+        EVAL_NUM = 2
 
     train_df = train[train["fold"] != USE_FOLD].reset_index(drop=True)
     val_df = train[train["fold"] == USE_FOLD].reset_index(drop=True)
@@ -195,7 +221,7 @@ if __name__ == "__main__":
     total_optim_steps = optim_steps_per_epoch * EPOCH
 
     # 全体の10%間隔（= 全体を10分割）
-    interval_steps = max(1, total_optim_steps // 10)
+    interval_steps = max(1, total_optim_steps // EVAL_NUM)
 
     sft_config = SFTConfig(
         output_dir=CHECKPOINT_PATH,

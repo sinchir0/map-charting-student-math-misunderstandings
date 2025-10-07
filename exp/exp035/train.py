@@ -24,39 +24,42 @@ import json
 DEBUG = False
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now(pytz.timezone('Asia/Tokyo')).strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp032_use_takaito_data_half_label_only_cand"
+EXP_NAME = "exp035_add_is_correct"
 MODEL_NAME = "Qwen/Qwen3-8B"
 MISCONCEPTION_CANDIDATE_PATH = Path("outputs/question_id_to_misconception_candidate/question_id_to_misconception_candidate_half_label.json")
+MISCONCEPTION_EXPLANATION_PATH = Path("outputs/misc_explanation/misconception.json")
 DATA_PATH = Path("data/takaito_data")
 ENV_PATH = Path("env_file")
-MAX_LEN = 512
+MAX_LEN = 768
 BATCH_SIZE = 8
 GRAD_ACCUM = 2
 SAVE_STEPS = 0.1
 EVAL_STEPS = 0.1
-LR = 2e-05
+LR = 2e-5
 EPOCH = 3
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.
-Based on the information provided below, determine whether the student's explanation is correct, a misconception, or neither.
+Based on the information provided below, please determine what kind of misunderstanding the student has.
 
 Question: {QuestionText}
-Student Answer: {MC_Answer}
-Whether the student's answer is correct: {Correct}
+Answer: {MC_Answer}
 Student Explanation: {StudentExplanation}
+Whether the student's answer is correct: {Correct}
+Candidates: {MisconceptionCandidate}
 
-When making your judgment, choose one label from the Candidates. Among the Candidates, any option other than Correct or Neither is considered a Misconception candidate.
-Label Candidates: {MisconceptionCandidate}
-
+Using the information provided, determine whether the student has a correct understanding, a misconception, or neither.
 If the student has a correct understanding, choose Correct.
-If the student has a misconception, choose one of the Misconception candidates.
-If the student does not have a correct understanding but none of the Candidates represent an appropriate misconception, choose Neither.
+If the student has a misconception, choose Misconception.
+If you select Misconception, you must choose exactly one label from Candidates other than “Correct” or “Neither”.
+If it is neither, choose Neither.
+
+Below are the descriptions of each misconception.
+{MisconceptionExplanation}
 
 In the Candidates list, each label has a symbol appended after a vertical bar ( | ).
-Respond using only the symbol of the chosen label.
+Generate with only the symbol of the label you choose.
 """
-
 
 COLS = ["prompt", "completion"]
 USE_FOLD = 0
@@ -77,7 +80,8 @@ def format_input(row) -> str:
         MC_Answer=row["MC_Answer"],
         Correct="Yes" if row["is_correct"] else "No",
         StudentExplanation=row["StudentExplanation"],
-        MisconceptionCandidate=row["misconception_candidate"]
+        MisconceptionCandidate=row["misconception_candidate"],
+        MisconceptionExplanation=row["misconception_explanation"],
     )
 
 def add_is_correct(df: pd.DataFrame) -> pd.DataFrame:
@@ -124,25 +128,30 @@ if __name__ == "__main__":
 
     train = pd.read_csv(DATA_PATH / "train.csv")
 
-    # train = make_completion(train)
-    # train = change_completion_to_one_token(train)
     train = add_is_correct(train)
+
+    # misconception_candidate列を追加する
     with open(MISCONCEPTION_CANDIDATE_PATH, "r") as f:
         misconception_candidate_dict = json.load(f)
-
     label2symbol_dict = make_str_label_to_symbol(train)
+    misconception_candidate_dict_symbol = misconception_candidate_dict.copy()
+    for k, v in misconception_candidate_dict_symbol.items():
+        misconception_candidate_dict_symbol[k] = ", ".join([label + f"|{label2symbol_dict[label]}" for label in v])
+    train["misconception_candidate"] = train["QuestionId"].astype(str).map(misconception_candidate_dict_symbol)
 
-    # misconception_candidate_dict の valueに対して、:symbol を付与する
-    for k, v in misconception_candidate_dict.items():
-        misconception_candidate_dict[k] = ", ".join([label + f"|{label2symbol_dict[label]}" for label in v])
+    # misconception_explanation列を追加する
+    with open(MISCONCEPTION_EXPLANATION_PATH, "r") as f:
+        misconception_explanation_dict = json.load(f)
+    question_id_to_explanation_text_dict = misconception_candidate_dict.copy()
+    for k, v in question_id_to_explanation_text_dict.items():
+        question_id_to_explanation_text_dict[k] = "\n".join([label + f":{misconception_explanation_dict[label]}" for label in v if label not in ["Correct", "Neither"]])
+    train["misconception_explanation"] = train["QuestionId"].astype(str).map(question_id_to_explanation_text_dict)
 
-    train["misconception_candidate"] = train["QuestionId"].astype(str).map(misconception_candidate_dict)
-    
     train["prompt"] = train.apply(format_input, axis=1)
     train["completion"] = train["symbol_label"]
     print("Example prompt for our LLM:")
     print(train["prompt"].values[0])
-    pass
+    
     if DEBUG:
         train = train.sample(100, random_state=SEED).reset_index(drop=True)
         SAVE_STEPS = 0.5
@@ -173,7 +182,6 @@ if __name__ == "__main__":
             examples["prompt"]
         )
         max_input_length = max([len(input_id) for input_id in tokenized["input_ids"]])
-        
         if (max_input_length >= (MAX_LEN - 1)): # -1は、completionの分を確保するため
             raise ValueError(f"Input length exceeds MAX_LEN of {MAX_LEN - 1}. Input Length: {max_input_length}. Please increase MAX_LEN.")
         return tokenized
@@ -241,7 +249,7 @@ if __name__ == "__main__":
         else:
             print("No checkpoint found, starting training from scratch.")
             trainer.train()
-    
+
     trainer.train(resume_from_checkpoint=f"{CHECKPOINT_PATH}/{latest_checkpoint}" if args.use_checkpoint else None)
 
     # 保存

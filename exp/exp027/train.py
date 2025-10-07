@@ -33,7 +33,7 @@ MAX_LEN = 1156
 BATCH_SIZE = 6
 GRAD_ACCUM = 2
 LR = 2e-5
-EPOCH = 3
+EPOCH = 4
 SEED = 42
 PROMPT_FORMAT = """\
 You are a specialist in identifying the types of misunderstandings that arise from students’ answers to math problems.

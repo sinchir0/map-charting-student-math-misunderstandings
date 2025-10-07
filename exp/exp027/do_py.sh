@@ -23,7 +23,7 @@ uv run python exp/$EXP_NAME/summarize_map_at_3.py --dir $DIR_NAME
 uv run python exp/$EXP_NAME/copy_best_cv_to_upload.py --dir $DIR_NAME
 
 # Kaggleへアップロード
-uv run python exp/$EXP_NAME/data_upload.py --dir $DIR_NAME --dataset-name $EXP_NAME-$NOW
+uv run python exp/$EXP_NAME/data_upload.py --dir $DIR_NAME/upload --dataset-name $EXP_NAME-$NOW
 
 # GCSへのアップロード
 gcloud storage cp -r $DIR_NAME gs://saito-map/${DIR_NAME#outputs/}

@@ -7,6 +7,22 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug exp034 evaluate",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/exp/exp034/evaluate.py",
+            "args": [
+                "--dir",
+                "outputs/exp034/20251005185134/checkpoint/checkpoint-152"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONUNBUFFERED": "1"
+            }
         }
     ]
 }

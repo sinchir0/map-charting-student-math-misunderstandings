@@ -1,8 +1,7 @@
 #!/bin/bash
-EXP_NAME=exp032
+EXP_NAME=exp033
 NOW=$(TZ=Asia/Tokyo date +%Y%m%d%H%M%S)
-# DIR_NAME=outputs/$EXP_NAME/$NOW
-DIR_NAME=outputs/exp032/20251006082755
+DIR_NAME=outputs/$EXP_NAME/$NOW
 
 gcloud auth login
 uv run python exp/$EXP_NAME/train.py --dir $DIR_NAME
@@ -28,4 +27,4 @@ uv run python exp/$EXP_NAME/data_upload.py --dir $DIR_NAME --dataset-name $EXP_N
 gcloud storage cp -r $DIR_NAME gs://saito-map/${DIR_NAME#outputs/}
 
 # インスタンスを落とす
-# gcloud compute instances stop saito-gpu-map-calc-1t --zone=us-central1-c --discard-local-ssd=false
+gcloud compute instances stop saito-gpu-map-calc-1t --zone=us-central1-c --discard-local-ssd=false

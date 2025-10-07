@@ -75,6 +75,24 @@ def postprocess_for_question_id_33471(row) -> list[str]:
     else:
         return row["prediction"]
 
+def add_is_correct(train: pd.DataFrame, test: pd.DataFrame) -> pd.DataFrame:
+    """
+    For each QuestionId, the answer with the highest number of MC_Answer set to True is designated as the correct one.
+    """
+    idx = train.apply(lambda row: row["Category"].split("_")[0], axis=1) == "True"
+    correct = train.loc[idx].copy()
+    correct["count"] = correct.groupby(["QuestionId", "MC_Answer"]).MC_Answer.transform(
+        "count"
+    )
+    correct = correct.sort_values("count", ascending=False)
+    correct = correct.drop_duplicates(["QuestionId"])
+    correct = correct[["QuestionId", "MC_Answer"]]
+    correct["is_correct"] = 1
+
+    test = test.merge(correct, on=["QuestionId", "MC_Answer"], how="left")
+    test["is_correct"] = test["is_correct"].fillna(0)
+    return test
+
 if __name__ == "__main__":
     # Pathの指定
     parser = argparse.ArgumentParser()
@@ -88,7 +106,11 @@ if __name__ == "__main__":
 
     # OUT_DIRのひとつ上の階層のuploadディレクトリにval_df.csvがある想定
     val_df = pd.read_csv(Path(OUT_DIR).parent.parent / "upload" / "val_df.csv")
-    
+
+    # is_correct列をval_dfに追加
+    train = pd.read_csv(DATA_PATH / "train.csv")
+    val_df = add_is_correct(train, val_df)
+
     if DEBUG:
         val_df = val_df[:10]
     
