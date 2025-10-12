@@ -9,13 +9,13 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Debug exp034 evaluate",
+            "name": "Debug exp038 evaluate",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/exp/exp034/evaluate.py",
+            "program": "${workspaceFolder}/exp/exp038/evaluate.py",
             "args": [
                 "--dir",
-                "outputs/exp034/20251005185134/checkpoint/checkpoint-152"
+                "outputs/exp038/20251011225022/checkpoint/checkpoint-918"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
