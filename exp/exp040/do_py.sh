@@ -1,5 +1,5 @@
 #!/bin/bash
-EXP_NAME=exp037
+EXP_NAME=exp040
 NOW=$(TZ=Asia/Tokyo date +%Y%m%d%H%M%S)
 DIR_NAME=outputs/$EXP_NAME/$NOW
 

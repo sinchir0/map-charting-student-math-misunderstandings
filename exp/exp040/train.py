@@ -25,7 +25,7 @@ import json
 DEBUG = True
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now(pytz.timezone('Asia/Tokyo')).strftime("%Y%m%d%H%M%S")
-EXP_NAME = "exp039_self_distil"
+EXP_NAME = "exp040_self_distil"
 MODEL_NAME = "Qwen/Qwen3-8B"
 MISCONCEPTION_CANDIDATE_PATH = Path("outputs/question_id_to_misconception_candidate/question_id_to_misconception_candidate_half_label.json")
 MISCONCEPTION_EXPLANATION_PATH = Path("outputs/misc_explanation/misconception.json")
