@@ -68,14 +68,7 @@ def add_correct_info(row) -> list[str]:
     else:
         return [f"False_{pred}" for pred in predictions] 
 
-def postprocess_for_question_id_33471_for_actual(row) -> list[str]:
-    # QuestionIDが33471の場合はWrong_Fraction↔︎Wrong_fractionの修正を行う。
-    if row["QuestionId"] == 33471:
-        return row["completion"].replace("Wrong_Fraction", "Wrong_fraction")
-    else:
-        return row["completion"]
-
-def postprocess_for_question_id_33471_for_pred(row) -> list[str]:
+def postprocess_for_question_id_33471(row) -> list[str]:
     # QuestionIDが33471の場合はWrong_Fraction↔︎Wrong_fractionの修正を行う。
     if row["QuestionId"] == 33471:
         return [pred.replace("Wrong_Fraction", "Wrong_fraction") for pred in row["prediction"]]
@@ -184,15 +177,14 @@ if __name__ == "__main__":
     # {}の部分には推論したsymbolを、正しいlabelに戻したもの
     val_df["prediction"] = val_df.apply(add_correct_info, axis=1)
 
+    # QuestionIDがhogeの場合はWrong_Fraction↔︎Wrong_fractionの修正を行う。
+    val_df["prediction"] = val_df.apply(postprocess_for_question_id_33471, axis=1)
+
     # 正解を元に戻す
     val_df["completion"] = val_df["completion"].apply(lambda x: symbol_to_label[x])
     val_df["completion"] = val_df.apply(
         lambda row: f"True_{row['completion']}" if row["is_correct"] == 1.0 else f"False_{row['completion']}", axis=1
     )
-
-    # QuestionIDがhogeの場合はWrong_Fraction↔︎Wrong_fractionの修正を行う。
-    val_df["completion"] = val_df.apply(postprocess_for_question_id_33471_for_actual, axis=1)
-    val_df["prediction"] = val_df.apply(postprocess_for_question_id_33471_for_pred, axis=1)
 
     # 結果の一部を表示
     print(f"\nvLLM推論完了: {len(predictions)}件")
