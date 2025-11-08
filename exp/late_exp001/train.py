@@ -159,17 +159,17 @@ if __name__ == "__main__":
     val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
     # 8bit
-    quantization_config = BitsAndBytesConfig(
-        load_in_8bit=True, # 8 ビットに量子化された形式で読み込むように指定
-    )
+    # quantization_config = BitsAndBytesConfig(
+    #     load_in_8bit=True, # 8 ビットに量子化された形式で読み込むように指定
+    # )
 
     # 4bit
-    # quantization_config = BitsAndBytesConfig(
-    #     load_in_4bit=True, # 4 ビットに量子化された形式で読み込むように指定
-    #     bnb_4bit_use_double_quant=True, # 二重量子化の指定
-    #     bnb_4bit_quant_type="nf4", # 4 ビット量子化のデータ型として NF4 を指定
-    #     bnb_4bit_compute_dtype=torch.bfloat16 # 計算時のデータ型を指定
-    # )
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True, # 4 ビットに量子化された形式で読み込むように指定
+        bnb_4bit_use_double_quant=True, # 二重量子化の指定
+        bnb_4bit_quant_type="nf4", # 4 ビット量子化のデータ型として NF4 を指定
+        bnb_4bit_compute_dtype=torch.bfloat16 # 計算時のデータ型を指定
+    )
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         # attn_implementation="flash_attention_2", # A100なら動くかも
         device_map="auto",
     )
-
+    
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
     
     all_completions = train["completion"].unique().tolist()
@@ -223,6 +223,7 @@ if __name__ == "__main__":
         fp16=False,
         gradient_checkpointing=True,
         max_grad_norm=1.0,
+        completion_only_loss=True,
         report_to="wandb",
         # packing=True # A100なら動くかも
     )

@@ -33,8 +33,8 @@ UPLOAD_PATH = f"{OUTPUT_PATH}/upload"
 DATA_PATH = Path("data")
 ENV_PATH = Path("env_file")
 MAX_LEN = 256
-BATCH_SIZE = 32
-GRAD_ACCUM = 2
+BATCH_SIZE = 1
+GRAD_ACCUM = 1
 LR = 2e-5
 EPOCH = 1
 SEED = 42
@@ -48,7 +48,7 @@ Correct: {Correct}
 Student Explanation: {StudentExplanation}
 """
 COLS = ["prompt", "completion"]
-DEBUG = True
+DEBUG = False
 USE_FOLD = 0
 
 def seed_everything(seed: int):
@@ -158,9 +158,9 @@ if __name__ == "__main__":
     val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
     # 8bit
-    quantization_config = BitsAndBytesConfig(
-        load_in_8bit=True, # 8 ビットに量子化された形式で読み込むように指定
-    )
+    # quantization_config = BitsAndBytesConfig(
+    #     load_in_8bit=True, # 8 ビットに量子化された形式で読み込むように指定
+    # )
 
     # 4bit
     # quantization_config = BitsAndBytesConfig(
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
         trust_remote_code=True,
-        quantization_config=quantization_config,
+        # quantization_config=quantization_config,
         torch_dtype=torch.bfloat16,
         # attn_implementation="flash_attention_2", # A100なら動くかも
         device_map="auto",
@@ -222,7 +222,7 @@ if __name__ == "__main__":
         fp16=False,
         gradient_checkpointing=True,
         max_grad_norm=1.0,
-        report_to="wandb",
+        report_to="wandb"
         # packing=True # A100なら動くかも
     )
 
