@@ -12,13 +12,14 @@ dependencies = [
     "dotenv>=0.9.9",
     "isort>=6.0.1",
     "kaggle>=1.7.4.5",
+    "llmcompressor==0.8.1",
     "openai>=1.90.0",
     "pandas>=2.3.2",
     "peft>=0.17.1",
     "ruff>=0.12.12",
     "scikit-learn>=1.7.1",
+    "torch>=2.7.1",
     "trl>=0.19.1",
-    "vllm==0.8.5.post1",
     "wandb>=0.21.3",
 ]
 
