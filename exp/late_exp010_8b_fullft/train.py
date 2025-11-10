@@ -23,7 +23,7 @@ import json
 
 COMPETITION_NAME = "map-charting-student-math-misunderstandings"
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
-EXP_NAME = "late_exp009"
+EXP_NAME = "late_exp010_8b_fullft"
 MODEL_NAME = "Qwen/Qwen3-8B"
 FOLD_PATH = Path("outputs/fold/stratified_folds.json")
 DATA_PATH = Path("data")
@@ -220,17 +220,17 @@ if __name__ == "__main__":
     train_ds = Dataset.from_pandas(train_df[COLS], preserve_index=False)
     val_ds = Dataset.from_pandas(val_df[COLS], preserve_index=False)
 
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True, # 4 ビットに量子化された形式で読み込むように指定
-        bnb_4bit_use_double_quant=True, # 二重量子化の指定
-        bnb_4bit_quant_type="nf4", # 4 ビット量子化のデータ型として NF4 を指定
-        bnb_4bit_compute_dtype=torch.bfloat16 # 計算時のデータ型を指定
-    )
+    # quantization_config = BitsAndBytesConfig(
+    #     load_in_4bit=True, # 4 ビットに量子化された形式で読み込むように指定
+    #     bnb_4bit_use_double_quant=True, # 二重量子化の指定
+    #     bnb_4bit_quant_type="nf4", # 4 ビット量子化のデータ型として NF4 を指定
+    #     bnb_4bit_compute_dtype=torch.bfloat16 # 計算時のデータ型を指定
+    # )
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
         trust_remote_code=True,
-        quantization_config=quantization_config,
+        # quantization_config=quantization_config,
         torch_dtype=torch.bfloat16,
         # attn_implementation="flash_attention_2", # A100なら動くかも
         device_map="auto",
@@ -250,14 +250,14 @@ if __name__ == "__main__":
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
-    lora_config = LoraConfig(
-        r=8,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-        lora_alpha=64,
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
+    # lora_config = LoraConfig(
+    #     r=8,
+    #     target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    #     lora_alpha=64,
+    #     lora_dropout=0.05,
+    #     bias="none",
+    #     task_type="CAUSAL_LM",
+    # )
 
     sft_config = SFTConfig(
         output_dir=CHECKPOINT_PATH,
@@ -291,7 +291,7 @@ if __name__ == "__main__":
         args=sft_config,
         train_dataset=train_ds,
         eval_dataset=val_ds,
-        peft_config=lora_config,
+        # peft_config=lora_config,
     )
 
     trainer.train()
