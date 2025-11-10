@@ -9,7 +9,7 @@ from pathlib import Path
 
 # ref: https://www.kaggle.com/code/aerdem4/eedi-qwen32b-vllm-with-logits-processor-zoo
 DATA_PATH = Path("data")
-OUT_DIR = "outputs/late_exp009/late-exp009-202511101109"
+OUT_DIR = "outputs/late_exp010/late-exp010-202511101441"
 MAX_LEN = 256
 SEED = 42
 DEBUG = False
@@ -74,16 +74,16 @@ if __name__ == "__main__":
     allowed_token_ids = [tokenizer.encode(str(i), add_special_tokens=False)[0] for i in all_completions]
 
     vllm_model = LLM(
-        model=MODEL_NAME,
+        model=str(OUT_DIR),
         dtype=torch.float16, # Kaggle環境ではbfloat16が使えないため、合わせる
         gpu_memory_utilization=0.95,
         enforce_eager=True,
         max_model_len=MAX_LEN,
         seed=SEED,
-        quantization="bitsandbytes",
-        enable_lora=True,
+        # quantization="bitsandbytes",
+        # enable_lora=True,
     )
-    lora_req = LoRARequest("adapter", 1, str(OUT_DIR))
+    # lora_req = LoRARequest("adapter", 1, str(OUT_DIR))
 
     # サンプリングパラメータ設定
     sampling_params = SamplingParams(
@@ -99,7 +99,8 @@ if __name__ == "__main__":
     # val_df全体に対して推論実行
     print("\n=== vLLM推論開始 ===")
     prompts = val_df["prompt"].tolist()
-    outputs = vllm_model.generate(prompts, sampling_params, lora_request=lora_req)
+    # outputs = vllm_model.generate(prompts, sampling_params, lora_request=lora_req)
+    outputs = vllm_model.generate(prompts, sampling_params)
 
     predictions = []
     for output in outputs:
