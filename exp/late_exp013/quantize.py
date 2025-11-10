@@ -1,8 +1,9 @@
-from uv  import AutoRound
+from auto_round  import AutoRound
 from datetime import datetime
 from transformers import AutoTokenizer
 import pandas as pd
 from pathlib import Path
+import random
 
 DATA_PATH = Path("data")
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -141,15 +142,11 @@ if __name__ == "__main__":
     print("Example prompt for our LLM:")
     print(train["prompt"].values[0])
 
-    # texts = [
-    #     "Hello, how are you?",
-    #     "The capital of France is Paris.",
-    #     "Transformers are powerful models."
-    # ]
+    # autrround用にテキストを準備
+    train["texts"] = train["prompt"] + " " + train["completion"]
+    texts = train["texts"].tolist()
 
-    texts = train["prompt"].tolist()
     # ランダムに512件を取得する
-    import random
     random.seed(42)
     texts = random.sample(texts, min(512, len(texts)))
 
@@ -165,8 +162,11 @@ if __name__ == "__main__":
     # Available schemes: "W2A16", "W3A16", "W4A16", "W8A16", "NVFP4", "MXFP4" (no real kernels), "GGUF:Q4_K_M", etc.
     ar = AutoRound(
         model_name_or_path,
-        calib_data=calib_data,
-        scheme="W4A16"
+        dataset=calib_data,
+        nsamples=512,
+        iters=1000,
+        low_gpu_mem_usage=True,
+        scheme="W4A16",
     )
 
     # Highest accuracy (4–5× slower).

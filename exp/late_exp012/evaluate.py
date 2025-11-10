@@ -9,8 +9,8 @@ from pathlib import Path
 
 # ref: https://www.kaggle.com/code/aerdem4/eedi-qwen32b-vllm-with-logits-processor-zoo
 DATA_PATH = Path("data")
-OUT_DIR = "outputs/late_exp006/late-exp006-202511091217"
-MAX_LEN = 1024
+OUT_DIR = "outputs/late_exp012/late-exp012-gptq"
+MAX_LEN = 256
 SEED = 42
 DEBUG = False
 MODEL_NAME = "Qwen/Qwen3-0.6B"

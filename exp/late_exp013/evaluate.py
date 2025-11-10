@@ -9,11 +9,11 @@ from pathlib import Path
 
 # ref: https://www.kaggle.com/code/aerdem4/eedi-qwen32b-vllm-with-logits-processor-zoo
 DATA_PATH = Path("data")
-OUT_DIR = "outputs/late_exp008/20251109045616"
-MAX_LEN = 1024
+OUT_DIR = "outputs/late_exp013/late-exp013-signround"
+MAX_LEN = 256
 SEED = 42
 DEBUG = False
-MODEL_NAME = "Qwen/Qwen3-0.6B"
+MODEL_NAME = "Qwen/Qwen3-8B"
 
 os.environ["VLLM_USE_V1"] = "0" # Kaggle環境に合わせるため
 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         enforce_eager=True,
         max_model_len=MAX_LEN,
         seed=SEED,
-        quantization="gptq",
+        quantization="gptq", # auto-roundをgptq形式で出力している
         # enable_lora=True,
     )
     # lora_req = LoRARequest("adapter", 1, str(OUT_DIR))

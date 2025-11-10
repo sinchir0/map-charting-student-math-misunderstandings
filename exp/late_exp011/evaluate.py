@@ -9,11 +9,11 @@ from pathlib import Path
 
 # ref: https://www.kaggle.com/code/aerdem4/eedi-qwen32b-vllm-with-logits-processor-zoo
 DATA_PATH = Path("data")
-OUT_DIR = "outputs/late_exp007/late-exp007-w4a16-202511091953"
-MAX_LEN = 1024
+OUT_DIR = "outputs/late_exp011/late-exp011-awq"
+MAX_LEN = 256
 SEED = 42
 DEBUG = False
-MODEL_NAME = "Qwen/Qwen3-0.6B"
+MODEL_NAME = "Qwen/Qwen3-8B"
 
 os.environ["VLLM_USE_V1"] = "0" # Kaggle環境に合わせるため
 
