@@ -5,6 +5,7 @@ import pandas as pd
 from pathlib import Path
 import random
 
+MODEL_PATH = "outputs/late_exp010/late-exp010-202511101441"
 DATA_PATH = Path("data")
 NOW = datetime.now().strftime("%Y%m%d%H%M%S")
 PROMPT_FORMAT = """\
@@ -15,9 +16,6 @@ Question: {QuestionText}
 Answer: {MC_Answer}
 Correct: {Correct}
 Student Explanation: {StudentExplanation}
-
-Below are the available classifications you can choose from.
-Always provide your response using only the specified format.
 """
 
 def make_completion(df: pd.DataFrame) -> pd.DataFrame:
@@ -128,10 +126,23 @@ def format_input(row) -> str:
         StudentExplanation=row["StudentExplanation"],
     )
 
+def make_calib_data(texts, tokenizer, seqlen=256):
+    input_ids = []
+    for t in texts:
+        ids = tokenizer(
+            t,
+            return_tensors="pt",
+            padding="max_length",
+            truncation=True,
+            max_length=seqlen
+        ).input_ids
+        input_ids.append(ids)
+    return input_ids
+
 if __name__ == "__main__":
 
     # Load a model (supports FP8/BF16/FP16/FP32)
-    model_name_or_path = "outputs/late_exp010_8b_fullft/20251110031601/upload"
+    model_name_or_path = MODEL_PATH
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
 
     train = pd.read_csv(DATA_PATH / "train.csv")
@@ -150,14 +161,7 @@ if __name__ == "__main__":
     random.seed(42)
     texts = random.sample(texts, min(512, len(texts)))
 
-    def make_calib_data(texts, tokenizer):
-        input_ids = []
-        for t in texts:
-            ids = tokenizer(t, return_tensors="pt").input_ids
-            input_ids.append(ids)
-        return input_ids
-
-    calib_data = make_calib_data(texts, tokenizer)
+    calib_data = make_calib_data(texts, tokenizer, seqlen=256)
 
     # Available schemes: "W2A16", "W3A16", "W4A16", "W8A16", "NVFP4", "MXFP4" (no real kernels), "GGUF:Q4_K_M", etc.
     ar = AutoRound(
@@ -167,6 +171,7 @@ if __name__ == "__main__":
         iters=1000,
         low_gpu_mem_usage=True,
         scheme="W4A16",
+        seqlen=128
     )
 
     # Highest accuracy (4–5× slower).
